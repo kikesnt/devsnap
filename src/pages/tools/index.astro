@@ -1,0 +1,72 @@
+---
+import Base from '../../layouts/Base.astro';
+import ToolIcon from '../../components/ToolIcon.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import { SITE, AD_SLOTS } from '../../config';
+
+const collectionSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `All ${tools.length} developer tools`,
+  url: `${SITE.domain}/tools/`,
+  description: `Every free developer tool on ${SITE.name}.`,
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: tools.length,
+    itemListElement: tools.map((tool, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: tool.name,
+      url: `${SITE.domain}/tools/${tool.slug}/`,
+    })),
+  },
+};
+import { tools, toolsByCategory } from '../../data/tools';
+import { truncate } from '../../lib/format';
+
+const grouped = toolsByCategory();
+---
+
+<Base
+  title={`All ${tools.length} developer tools`}
+  description={`Browse all ${tools.length} free developer tools on DevSnap. JSON, YAML, SQL, regex, JWT, cron, hashes, diffs, QR codes and more. Everything runs in your browser.`}
+  canonicalPath="/tools/"
+  ogImage="/og/default.png"
+  schemas={collectionSchema}
+>
+  <div class="wrap">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Tools</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>All {tools.length} developer tools</h1>
+      <p class="lede">
+        Every tool on this page runs entirely in your browser. There is no account to
+        create, nothing to install, and no data leaves the tab.
+      </p>
+    </header>
+
+    {
+      grouped.map((group) => (
+        <section class="section-tight">
+          <h2>{group.category}</h2>
+          <div class="card-grid">
+            {group.tools.map((tool) => (
+              <a class="tool-card" href={`/tools/${tool.slug}/`}>
+                <span class="tc-name">
+                  <span class="tc-glyph" aria-hidden="true"><ToolIcon name={tool.icon} size={17} /></span>
+                  {tool.name}
+                </span>
+                <span class="tc-desc">{truncate(tool.description, 96)}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))
+    }
+
+    <AdSlot slot={AD_SLOTS.inArticle} />
+  </div>
+</Base>

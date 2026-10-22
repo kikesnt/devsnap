@@ -1,0 +1,153 @@
+---
+import type { ToolDef } from '../../data/types';
+import JsonDiffScene from './JsonDiffScene.astro';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-diff">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Object keys are matched by name, arrays by position</span>
+  </div>
+  <div class="tool-body">
+    <div id="jd-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jd-left">Original</label>
+        <textarea id="jd-left" class="short" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="jd-right">Changed</label>
+        <textarea id="jd-right" class="short" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="jd-compare" type="button">Compare</button>
+      <button class="btn btn-secondary" id="jd-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jd-copy" type="button">Copy differences</button>
+    </div>
+
+    <JsonDiffScene />
+
+    <div class="output">
+      <div class="output-label"><span>Differences</span><span id="jd-count"></span></div>
+      <div class="output-box" id="jd-output" data-placeholder="Differences are listed here with their path."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { diffJson, describeDifference } from '../../lib/jsondiff';
+
+  const left = byId<HTMLTextAreaElement>('jd-left');
+  const right = byId<HTMLTextAreaElement>('jd-right');
+  const output = byId('jd-output');
+  const status = byId('jd-status');
+  const count = byId('jd-count');
+  const compareButton = byId<HTMLButtonElement>('jd-compare');
+  const sampleButton = byId<HTMLButtonElement>('jd-sample');
+  const copyButton = byId<HTMLButtonElement>('jd-copy');
+
+  const LEFT_SAMPLE = `{
+    "id": 42,
+    "user": { "name": "Ada", "role": "admin" },
+    "tags": ["alpha", "beta"],
+    "legacy_id": 10422,
+    "score": 10
+  }`;
+
+  const RIGHT_SAMPLE = `{
+    "id": 42,
+    "user": { "name": "Ada", "role": "editor", "team": "platform" },
+    "tags": ["alpha", "beta", "gamma"],
+    "score": "10"
+  }`;
+
+  function compare() {
+    const leftText = left?.value.trim() ?? '';
+    const rightText = right?.value.trim() ?? '';
+    if (!leftText && !rightText) {
+      clearStatus(status);
+      if (output) output.textContent = '';
+      if (count) count.textContent = '';
+      return;
+    }
+
+    let leftValue: unknown;
+    let rightValue: unknown;
+    try {
+      leftValue = JSON.parse(leftText);
+    } catch (error) {
+      setStatus(status, `The original is not valid JSON: ${(error as Error).message}`, 'error');
+      return;
+    }
+    try {
+      rightValue = JSON.parse(rightText);
+    } catch (error) {
+      setStatus(status, `The changed document is not valid JSON: ${(error as Error).message}`, 'error');
+      return;
+    }
+
+    clearStatus(status);
+    const differences = diffJson(leftValue, rightValue);
+
+    if (differences.length === 0) {
+      if (output) output.textContent = 'The two documents are structurally identical.';
+      if (count) count.textContent = 'no differences';
+      return;
+    }
+
+    document.dispatchEvent(
+      new CustomEvent('devsnap:json-diff', {
+        detail: {
+          left: leftValue,
+          right: rightValue,
+          changed: differences.map((difference) => difference.path),
+        },
+      })
+    );
+
+    const lines = differences.map((difference) => {
+      const label = difference.type === 'added' ? 'ADDED' : difference.type === 'removed' ? 'REMOVED' : difference.type === 'type' ? 'TYPE' : 'CHANGED';
+      return `<span data-path="${difference.path}">${label.padEnd(8)} ${difference.path}\n         ${describeDifference(difference)}</span>`;
+    });
+    if (output) output.textContent = lines.join('\n\n');
+    if (count) count.textContent = `${differences.length} difference${differences.length === 1 ? '' : 's'}`;
+  }
+
+  // Load the sample so the structure view has something to show immediately.
+  if (left) left.value = LEFT_SAMPLE;
+  if (right) right.value = RIGHT_SAMPLE;
+  compare();
+
+  document.addEventListener('devsnap:select-path', (event) => {
+    const path = (event as CustomEvent).detail.path as string;
+    const entries = output?.querySelectorAll<HTMLElement>('[data-path]') ?? [];
+    entries.forEach((entry) => {
+      const match = entry.dataset.path === path;
+      entry.classList.toggle('diff-entry-active', match);
+      if (match) entry.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
+
+  compareButton?.addEventListener('click', compare);
+  sampleButton?.addEventListener('click', () => {
+    if (left) left.value = LEFT_SAMPLE;
+    if (right) right.value = RIGHT_SAMPLE;
+    compare();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy differences');
+  });
+</script>

@@ -1,0 +1,174 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="snapshot">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Rendered on a canvas, in this tab</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="sn-input">Snippet</label>
+      <textarea id="sn-input" spellcheck="false" placeholder="Paste code, a diff, JSON or terminal output"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="sn-theme" aria-label="Theme"></select>
+      <input type="color" id="sn-accent" value="#7c8cff" style="width:46px;height:38px;padding:2px" title="Accent colour" />
+      <input type="number" id="sn-font" value="14" min="9" max="28" style="width:72px" title="Font size" />
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="sn-chrome" style="width:auto" checked /> Window chrome
+      </label>
+      <input type="text" id="sn-title" placeholder="Title bar text" style="max-width:220px" />
+      <button class="btn btn-primary" id="sn-render" type="button">Render</button>
+      <button class="btn btn-secondary" id="sn-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="sn-download" type="button">Download PNG</button>
+      <button class="btn btn-ghost" id="sn-share" type="button">Share</button>
+    </div>
+
+    <div class="stat-row" id="sn-stats"></div>
+
+    <div class="output mt-2">
+      <div class="output-label"><span>Preview</span></div>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg-subtle);overflow:auto">
+        <canvas id="sn-canvas" style="max-width:100%;height:auto"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton, downloadBlob } from '../../lib/dom';
+  import {
+    renderSnapshot,
+    snapshotThemes,
+    defaultSnapshotOptions,
+    themeById,
+    detectLanguage,
+  } from '../../lib/snapshot';
+
+  const input = byId<HTMLTextAreaElement>('sn-input');
+  const canvas = byId<HTMLCanvasElement>('sn-canvas');
+  const themeSelect = byId<HTMLSelectElement>('sn-theme');
+  const accentPicker = byId<HTMLInputElement>('sn-accent');
+  const fontInput = byId<HTMLInputElement>('sn-font');
+  const chromeToggle = byId<HTMLInputElement>('sn-chrome');
+  const titleInput = byId<HTMLInputElement>('sn-title');
+  const stats = byId('sn-stats');
+  const status = byId('sn-status');
+  const renderButton = byId<HTMLButtonElement>('sn-render');
+  const sampleButton = byId<HTMLButtonElement>('sn-sample');
+  const downloadButton = byId<HTMLButtonElement>('sn-download');
+  const shareButton = byId<HTMLButtonElement>('sn-share');
+
+  const SAMPLE = `diff --git a/src/auth.ts b/src/auth.ts
+index 8f2a1c4..b7d3e91 100644
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -12,7 +12,9 @@ export function verify(token: string) {
+   const parts = token.split(".");
+-  if (parts.length !== 3) {
+-    throw new Error("Malformed token");
++  if (parts.length !== 3) {
++    throw new Error(\`Malformed token: \${parts.length} segments\`);
+   }
+   return JSON.parse(
+     Buffer.from(parts[1], "base64url").toString()
+   );
+ }`;
+
+  for (const theme of snapshotThemes) {
+    const option = document.createElement('option');
+    option.value = theme.id;
+    option.textContent = theme.name;
+    themeSelect?.appendChild(option);
+  }
+  if (themeSelect) themeSelect.value = defaultSnapshotOptions.theme;
+  if (accentPicker) accentPicker.value = themeById(defaultSnapshotOptions.theme).accent;
+
+  function currentOptions() {
+    return {
+      theme: themeSelect?.value ?? defaultSnapshotOptions.theme,
+      title: titleInput?.value ?? '',
+      showChrome: chromeToggle?.checked ?? true,
+      fontSize: Number(fontInput?.value ?? 14),
+      padding: 28,
+      accent: accentPicker?.value ?? '',
+      language: 'auto',
+    };
+  }
+
+  function render() {
+    const source = input?.value ?? '';
+    if (!canvas) return;
+    if (!source.trim()) {
+      setStatus(status, 'Paste something to render.', 'info');
+      const context = canvas.getContext('2d');
+      context?.clearRect(0, 0, canvas.width, canvas.height);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    clearStatus(status);
+    const options = currentOptions();
+    const size = renderSnapshot(canvas, source, options);
+    const language = detectLanguage(source, 'auto');
+    if (stats) {
+      stats.innerHTML = `<span><b>${size.width}×${size.height}</b> px</span><span>Exported at <b>2×</b> resolution</span><span>Detected: <b>${language}</b></span>`;
+    }
+  }
+
+  renderButton?.addEventListener('click', render);
+  themeSelect?.addEventListener('change', render);
+  accentPicker?.addEventListener('input', render);
+  fontInput?.addEventListener('change', render);
+  chromeToggle?.addEventListener('change', render);
+  titleInput?.addEventListener('input', render);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    if (titleInput) titleInput.value = 'src/auth.ts';
+    render();
+  });
+
+  downloadButton?.addEventListener('click', () => {
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (blob) downloadBlob(blob, 'devsnap-snapshot.png');
+    }, 'image/png');
+  });
+
+  shareButton?.addEventListener('click', async () => {
+    if (!canvas) return;
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+    const file = new File([blob], 'devsnap-snapshot.png', { type: 'image/png' });
+    const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+    if (nav.canShare && nav.canShare({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: 'DevSnap', text: 'Made with DevSnap' });
+        return;
+      } catch {
+        return;
+      }
+    }
+    // Fall back to posting a link to X with a call to action.
+    const text = 'Made with DevSnap — the developer toolbox that runs entirely in your browser.';
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  });
+
+  if (input) input.value = SAMPLE;
+  if (titleInput) titleInput.value = 'src/auth.ts';
+  render();
+</script>

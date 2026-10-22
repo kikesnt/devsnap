@@ -1,0 +1,58 @@
+---
+/**
+ * Ad server-agnostic ad slot.
+ *
+ * Design notes (these are policy requirements, not preferences):
+ *  - No <iframe> wrapper. Google prohibits ads inside iframes.
+ *  - No lazy rendering / IntersectionObserver. Google ties aggressive lazy
+ *    rendering to impression loss under the begin-to-render methodology that
+ *    takes effect 17 Feb 2027.
+ *  - Slots are rendered server-side so the markup exists in the initial HTML.
+ *  - Nothing is rendered when the publisher id is not configured, which keeps
+ *    local and pre-approval builds completely ad-free.
+ */
+import { ADS_ENABLED, ADSENSE_CLIENT } from '../config';
+
+interface Props {
+  slot: string;
+  variant?: 'default' | 'footer' | 'sidebar';
+}
+
+const { slot, variant = 'default' } = Astro.props;
+const active = ADS_ENABLED;
+---
+
+{
+  active && (
+    <aside
+      class:list={['ad-slot', variant !== 'default' && `ad-slot--${variant}`]}
+      aria-label="Advertisement"
+      data-ad-slot={slot}
+    >
+      <span class="ad-label">Advertisement</span>
+      <ins
+        class="adsbygoogle"
+        style="display:block"
+        data-ad-client={ADSENSE_CLIENT}
+        data-ad-slot={slot}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
+      <script is:inline>
+        // Until the visitor has granted consent, the request is made with
+        // npa=1, which serves non-personalised advertising: the impression
+        // is still measured but no profiling cookie is set.
+        (function () {
+          var granted = window.__adsConsent === 'granted';
+          if (!granted) {
+            var slots = document.querySelectorAll('ins.adsbygoogle');
+            for (var i = 0; i < slots.length; i += 1) {
+              slots[i].setAttribute('data-npa', '1');
+            }
+          }
+          (adsbygoogle = window.adsbygoogle || []).push({});
+        })();
+      </script>
+    </aside>
+  )
+}

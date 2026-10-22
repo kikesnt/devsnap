@@ -1,0 +1,156 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="timestamp-converter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Seconds, milliseconds, microseconds and nanoseconds</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="tc-input">Timestamp or date</label>
+      <input type="text" id="tc-input" spellcheck="false" placeholder="1767225600 or 2026-01-01T00:00:00Z" />
+    </div>
+
+    <div class="tool-actions">
+      <select id="tc-unit" aria-label="Unit">
+        <option value="auto">Detect unit</option>
+        <option value="s">Seconds</option>
+        <option value="ms">Milliseconds</option>
+        <option value="us">Microseconds</option>
+        <option value="ns">Nanoseconds</option>
+      </select>
+      <button class="btn btn-primary" id="tc-convert" type="button">Convert</button>
+      <button class="btn btn-secondary" id="tc-now" type="button">Current time</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="tc-copy" type="button">Copy ISO</button>
+    </div>
+
+    <div class="table-wrap mt-3">
+      <table>
+        <thead><tr><th style="width:230px">Representation</th><th>Value</th></tr></thead>
+        <tbody id="tc-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLInputElement>('tc-input');
+  const unitSelect = byId<HTMLSelectElement>('tc-unit');
+  const rows = byId('tc-rows');
+  const status = byId('tc-status');
+  const convertButton = byId<HTMLButtonElement>('tc-convert');
+  const nowButton = byId<HTMLButtonElement>('tc-now');
+  const copyButton = byId<HTMLButtonElement>('tc-copy');
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function detectUnit(digits: number): 's' | 'ms' | 'us' | 'ns' {
+    if (digits >= 19) return 'ns';
+    if (digits >= 16) return 'us';
+    if (digits >= 13) return 'ms';
+    return 's';
+  }
+
+  function toMilliseconds(value: number, unit: string): number {
+    if (unit === 's') return value * 1000;
+    if (unit === 'us') return value / 1000;
+    if (unit === 'ns') return value / 1_000_000;
+    return value;
+  }
+
+  function pad(value: number, length = 2): string {
+    return value.toString().padStart(length, '0');
+  }
+
+  function render(date: Date) {
+    const iso = date.toISOString();
+    const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    const rfc = iso.replace(/\.\d{3}Z$/, 'Z');
+    const sql = iso.replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    const unixSeconds = Math.floor(date.getTime() / 1000);
+    const unixMillis = date.getTime();
+    const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
+    const week = date.toISOString().slice(0, 10);
+
+    const entries: [string, string][] = [
+      ['ISO 8601 (UTC)', iso],
+      ['RFC 3339', rfc],
+      ['Local time', local],
+      ['SQL format', sql],
+      ['Unix seconds', String(unixSeconds)],
+      ['Unix milliseconds', String(unixMillis)],
+      ['Unix microseconds', String(unixMillis * 1000)],
+      ['Unix nanoseconds', String(unixMillis * 1_000_000)],
+      ['Day of the year', String(dayOfYear)],
+      ['Date only', week],
+    ];
+
+    if (rows) {
+      rows.innerHTML = entries
+        .map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td><code>${escapeHtml(value)}</code></td></tr>`)
+        .join('');
+    }
+  }
+
+  function convert() {
+    const raw = (input?.value ?? '').trim();
+    if (!raw) {
+      clearStatus(status);
+      if (rows) rows.innerHTML = '';
+      return;
+    }
+
+    let date: Date | null = null;
+
+    if (/^-?\d+$/.test(raw)) {
+      const digits = raw.replace('-', '').length;
+      const selected = unitSelect?.value ?? 'auto';
+      const unit = selected === 'auto' ? detectUnit(digits) : selected;
+      const milliseconds = toMilliseconds(Number(raw), unit);
+      date = new Date(milliseconds);
+      if (isNaN(date.getTime())) date = null;
+    } else {
+      const parsed = new Date(raw);
+      if (!isNaN(parsed.getTime())) date = parsed;
+    }
+
+    if (!date) {
+      setStatus(status, 'That value could not be read as a timestamp or a date.', 'error');
+      if (rows) rows.innerHTML = '';
+      return;
+    }
+
+    clearStatus(status);
+    render(date);
+  }
+
+  convertButton?.addEventListener('click', convert);
+  unitSelect?.addEventListener('change', convert);
+  nowButton?.addEventListener('click', () => {
+    if (input) input.value = String(Math.floor(Date.now() / 1000));
+    convert();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(new Date().toISOString());
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy ISO');
+  });
+  input?.addEventListener('keydown', (event) => {
+    if ((event as KeyboardEvent).key === 'Enter') convert();
+  });
+</script>

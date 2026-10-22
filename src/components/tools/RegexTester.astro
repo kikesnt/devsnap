@@ -1,0 +1,272 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="regex-tester">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>JavaScript regular expressions</span>
+  </div>
+  <div class="tool-body">
+    <div id="rt-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="rt-pattern">Pattern</label>
+      <input type="text" id="rt-pattern" spellcheck="false" placeholder="(?&lt;year&gt;\d{4})-(?&lt;month&gt;\d{2})" />
+    </div>
+
+    <div class="tool-actions">
+      <label class="chip" style="gap:6px;cursor:pointer"><input type="checkbox" id="rt-g" style="width:auto" checked /> g</label>
+      <label class="chip" style="gap:6px;cursor:pointer"><input type="checkbox" id="rt-i" style="width:auto" /> i</label>
+      <label class="chip" style="gap:6px;cursor:pointer"><input type="checkbox" id="rt-m" style="width:auto" /> m</label>
+      <label class="chip" style="gap:6px;cursor:pointer"><input type="checkbox" id="rt-s" style="width:auto" /> s</label>
+      <label class="chip" style="gap:6px;cursor:pointer"><input type="checkbox" id="rt-u" style="width:auto" /> u</label>
+      <button class="btn btn-secondary" id="rt-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="rt-copy" type="button">Copy pattern</button>
+    </div>
+
+    <div class="field mt-2">
+      <label for="rt-input">Subject text</label>
+      <textarea id="rt-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="stat-row" id="rt-stats"></div>
+
+    <div class="output mt-2">
+      <div class="output-label"><span>Matches</span></div>
+      <div class="output-box" id="rt-output" data-placeholder="Matches are listed here."></div>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Token breakdown</span></div>
+      <div class="output-box" id="rt-explain" data-placeholder="Each part of the pattern is explained here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const patternInput = byId<HTMLInputElement>('rt-pattern');
+  const textInput = byId<HTMLTextAreaElement>('rt-input');
+  const output = byId('rt-output');
+  const explain = byId('rt-explain');
+  const status = byId('rt-status');
+  const stats = byId('rt-stats');
+  const sampleButton = byId<HTMLButtonElement>('rt-sample');
+  const copyButton = byId<HTMLButtonElement>('rt-copy');
+  const flagInputs = ['rt-g', 'rt-i', 'rt-m', 'rt-s', 'rt-u']
+    .map((id) => byId<HTMLInputElement>(id))
+    .filter((element): element is HTMLInputElement => Boolean(element));
+
+  const SAMPLE_PATTERN = '(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})';
+  const SAMPLE_TEXT = `Release notes
+2026-01-14  initial release
+2026-03-02  snapshot tool
+2026-09-30  contrast checker
+not-a-date  2026-13-45  bad values`;
+
+  function currentFlags(): string {
+    return flagInputs
+      .filter((input) => input.checked)
+      .map((input) => input.id.replace('rt-', ''))
+      .join('');
+  }
+
+  /** Breaks a pattern into readable parts. */
+  function explainPattern(pattern: string): string {
+    const parts: string[] = [];
+    let index = 0;
+
+    while (index < pattern.length) {
+      const char = pattern[index]!;
+
+      if (char === '\\') {
+        const next = pattern[index + 1] ?? '';
+        const map: Record<string, string> = {
+          d: 'Any digit (0-9)',
+          D: 'Any character that is not a digit',
+          w: 'Any word character (letter, digit or underscore)',
+          W: 'Any character that is not a word character',
+          s: 'Any whitespace character',
+          S: 'Any character that is not whitespace',
+          b: 'A word boundary',
+          B: 'A position that is not a word boundary',
+          n: 'A newline',
+          t: 'A tab',
+          r: 'A carriage return',
+        };
+        parts.push(`\\${next} — ${map[next] ?? `The escaped character "${next}"`}`);
+        index += 2;
+        continue;
+      }
+
+      if (char === '[') {
+        const close = pattern.indexOf(']', index);
+        if (close === -1) {
+          parts.push('[ — an unterminated character class');
+          break;
+        }
+        const negated = pattern[index + 1] === '^';
+        parts.push(
+          `[${pattern.slice(index + 1, close)}] — ${negated ? 'Any character NOT in this set' : 'Any character in this set'}`
+        );
+        index = close + 1;
+        continue;
+      }
+
+      if (char === '(') {
+        if (pattern.startsWith('(?<', index) && !pattern.startsWith('(?<=', index) && !pattern.startsWith('(?<!', index)) {
+          const close = pattern.indexOf('>', index);
+          const name = pattern.slice(index + 3, close);
+          parts.push(`(?<${name}> — Starts a named capture group called "${name}"`);
+          index = close + 1;
+          continue;
+        }
+        if (pattern.startsWith('(?=', index)) {
+          parts.push('(?= — A positive lookahead: the text after it must match, without being consumed');
+          index += 3;
+          continue;
+        }
+        if (pattern.startsWith('(?!', index)) {
+          parts.push('(?! — A negative lookahead: the text after it must not match');
+          index += 3;
+          continue;
+        }
+        if (pattern.startsWith('(?<=', index)) {
+          parts.push('(?<= — A positive lookbehind: the text before it must match, without being consumed');
+          index += 4;
+          continue;
+        }
+        if (pattern.startsWith('(?<!', index)) {
+          parts.push('(?<! — A negative lookbehind: the text before it must not match');
+          index += 4;
+          continue;
+        }
+        if (pattern.startsWith('(?:', index)) {
+          parts.push('(?: — A non-capturing group');
+          index += 3;
+          continue;
+        }
+        parts.push('( — Starts a capture group');
+        index += 1;
+        continue;
+      }
+
+      if (char === ')') {
+        parts.push(') — Ends the capture group');
+        index += 1;
+        continue;
+      }
+
+      if (char === '^') {
+        parts.push('^ — The start of the line');
+        index += 1;
+        continue;
+      }
+      if (char === '$') {
+        parts.push('$ — The end of the line');
+        index += 1;
+        continue;
+      }
+      if (char === '.') {
+        parts.push('. — Any character except a line break');
+        index += 1;
+        continue;
+      }
+      if (char === '|') {
+        parts.push('| — An alternative');
+        index += 1;
+        continue;
+      }
+      if (char === '*' || char === '+' || char === '?') {
+        parts.push(`${char} — The previous item repeats${char === '?' ? ' zero or one time (optional)' : char === '*' ? ' zero or more times' : ' one or more times'}`);
+        index += 1;
+        continue;
+      }
+      if (char === '{') {
+        const close = pattern.indexOf('}', index);
+        if (close === -1) {
+          parts.push('{ — An unterminated repetition');
+          break;
+        }
+        parts.push(`{${pattern.slice(index + 1, close)}} — Repeat the previous item this many times`);
+        index = close + 1;
+        continue;
+      }
+
+      index += 1;
+    }
+
+    return parts.length ? parts.join('\n') : 'The pattern is empty.';
+  }
+
+  function run() {
+    const pattern = patternInput?.value ?? '';
+    const text = textInput?.value ?? '';
+    if (!pattern) {
+      if (output) output.textContent = '';
+      if (explain) explain.textContent = explainPattern('');
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern, currentFlags());
+    } catch (error) {
+      if (output) output.textContent = '';
+      setStatus(status, `The pattern is not valid: ${(error as Error).message}`, 'error');
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    clearStatus(status);
+    if (explain) explain.textContent = explainPattern(pattern);
+
+    const flags = currentFlags();
+    const globalFlags = flags.includes('g') ? flags : `${flags}g`;
+    const matches = [...text.matchAll(new RegExp(pattern, globalFlags))];
+    if (matches.length === 0) {
+      if (output) output.textContent = 'No matches.';
+      if (stats) stats.innerHTML = '<span><b>0</b> matches</span>';
+      return;
+    }
+
+    const lines = matches.slice(0, 200).map((match, index) => {
+      const groups = [...match.entries()]
+        .slice(1)
+        .map(([name, value]) => `      ${name}: ${value === undefined ? '—' : value}`)
+        .join('\n');
+      return `${String(index + 1).padStart(2, '0')}. "${match[0]}" at index ${match.index}\n${groups}`;
+    });
+
+    if (output) output.textContent = lines.join('\n\n');
+    if (stats) {
+      const groupCount = matches[0]?.length ?? 1;
+      stats.innerHTML = `<span><b>${matches.length}</b> matches</span><span><b>${groupCount - 1}</b> capture groups</span><span>Flags: <b>${currentFlags() || 'none'}</b></span>`;
+    }
+  }
+
+  patternInput?.addEventListener('input', run);
+  textInput?.addEventListener('input', run);
+  flagInputs.forEach((input) => input.addEventListener('change', run));
+  sampleButton?.addEventListener('click', () => {
+    if (patternInput) patternInput.value = SAMPLE_PATTERN;
+    if (textInput) textInput.value = SAMPLE_TEXT;
+    run();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(patternInput?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy pattern');
+  });
+</script>

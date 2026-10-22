@@ -1,0 +1,90 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="case-converter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Every style at once, one value or a whole list</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="cas-input">Identifier or list</label>
+      <textarea id="cas-input" class="short" spellcheck="false" placeholder="userAccountId"></textarea>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Variants</span><span id="cas-stats"></span></div>
+      <div class="output-box" id="cas-output" style="min-height:220px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+  import { allCaseVariants, caseStyleNames } from '../../lib/caseconverter';
+  import type { CaseStyleName } from '../../lib/caseconverter';
+
+  const input = byId<HTMLTextAreaElement>('cas-input');
+  const output = byId('cas-output');
+  const stats = byId('cas-stats');
+
+  const SAMPLE = `userAccountId
+created_at
+HTTPServer
+order-item
+maxRetryCount`;
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function render() {
+    const raw = (input?.value ?? '').trim();
+    if (!raw) {
+      if (output) output.textContent = '';
+      if (stats) stats.textContent = '';
+      return;
+    }
+
+    const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+    const isList = lines.length > 1;
+    const variants = allCaseVariants(isList ? '' : lines[0]!);
+
+    const rows = caseStyleNames
+      .map((name) => {
+        const value = isList
+          ? lines.map((line) => allCaseVariants(line)[name]).join('\n')
+          : variants[name];
+        return `<div style="display:flex;gap:12px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(127,140,160,.18)">
+          <span style="flex:0 0 130px;color:#7c8ca1;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em">${escapeHtml(name)}</span>
+          <code style="flex:1;white-space:pre-wrap;word-break:break-word;color:#e6edf3">${escapeHtml(value)}</code>
+          <button class="btn btn-ghost btn-sm" type="button" data-copy="${escapeHtml(value)}" data-style="${escapeHtml(name)}">Copy</button>
+        </div>`;
+      })
+      .join('');
+
+    if (output) output.innerHTML = rows;
+    if (stats) stats.textContent = isList ? `${lines.length} values` : '1 value';
+
+    output?.querySelectorAll<HTMLButtonElement>('button[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const ok = await copyText(button.dataset.copy ?? '');
+        if (ok) flashButton(button, 'Copied', 'Copy');
+      });
+    });
+  }
+
+  input?.addEventListener('input', render);
+  if (input) input.value = SAMPLE;
+  render();
+</script>

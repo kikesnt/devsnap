@@ -1,0 +1,118 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+import { tools } from '../data/tools';
+import { guides } from '../data/guides';
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  name: `About ${SITE.name}`,
+  url: `${SITE.domain}/about/`,
+  mainEntity: {
+    '@type': 'Organization',
+    name: SITE.publisher,
+    url: SITE.domain,
+    email: SITE.contactEmail,
+  },
+};
+---
+
+<Base
+  title="About DevSnap — Free Browser-Based Developer Tools"
+  description="What DevSnap is, who builds it, how the tools run in your browser, and why nothing you paste is ever transmitted to a server."
+  canonicalPath="/about/"
+  schemas={organizationSchema}
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>About</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>About {SITE.name}</h1>
+      <p class="lede">
+        A small, independent toolbox for the things developers do twenty times a day
+        and nobody wants to install a package for.
+      </p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>What this is</h2>
+      <p>
+        {SITE.name} is a set of {tools.length} single-purpose tools for formatting,
+        converting, inspecting and sharing developer data: JSON, YAML, SQL, XML, CSV,
+        regular expressions, JWTs, cron schedules, hashes, diffs, timestamps, QR codes
+        and a few odds and ends that turned out to be needed constantly.
+      </p>
+      <p>
+        There is no account, no install step, no trial tier and no dashboard. You open
+        a page, you paste something, you get a result, you copy it. That is the whole
+        product.
+      </p>
+
+      <h2>How the tools work</h2>
+      <p>
+        Every tool runs as JavaScript in your browser, using the same platform
+        primitives your own application would use: the native <code>JSON</code> engine
+        for parsing, the Web Crypto API for hashing, the Canvas API for rendering
+        images, and the standard URL and base64 utilities for encoding.
+      </p>
+      <p>
+        Nothing is uploaded. This is not a promise about our intentions, it is an
+        architectural property: there is no endpoint that receives your input. If you
+        open the browser's network panel while you use a tool, you will see the page
+        load and nothing else.
+      </p>
+      <p>
+        The practical consequence is that a payload containing a credential, a customer
+        record or an internal hostname stays on your machine, and the tool still works
+        with the network switched off.
+      </p>
+
+      <h2>What we publish</h2>
+      <p>
+        Alongside the tools there are {guides.length} longer guides. They exist because
+        a tool that shows you a ratio or a field breakdown is more useful when you
+        understand why the rule is what it is. Each one covers a single concept —
+        reading a JWT, cron semantics, timezone handling, WCAG contrast, UTM naming —
+        and is written to be useful even if you never touch the site again.
+      </p>
+
+      <h2>How it is funded</h2>
+      <p>
+        Through advertising. The layout is deliberate about that: the tools are the
+        product, and the advertising is kept out of the way of the work. We do not sell
+        data, we do not run tracking scripts beyond what the ad network requires, and
+        we do not ask for an email address.
+      </p>
+      <p>
+        If a tool is useful enough that you would pay for it, that is worth telling us
+        about. The most valuable thing you can send us is a description of what you
+        were trying to do and what the tool could not do.
+      </p>
+
+      <h2>Corrections</h2>
+      <p>
+        Tools get things wrong. A regex engine that mishandles a flag, a date
+        calculation that forgets a daylight saving transition, a formatter that changes
+        a string literal — all of these are the kind of thing that silently breaks
+        somebody's build.
+      </p>
+      <p>
+        If a tool gives you a wrong answer, <a href="/contact/">tell us</a> with the
+        input that produced it. We will fix it and, where the tool has a documented
+        limitation, we will say so on the page.
+      </p>
+
+      <h2>Relationship to other projects</h2>
+      <p>
+        {SITE.name} is an independent project. It is not affiliated with, endorsed by
+        or sponsored by Google, Adobe, GitHub, Mozilla or any other organisation whose
+        name appears in its documentation. Product names and trademarks belong to their
+        respective owners and are used here only to describe compatibility.
+      </p>
+    </div>
+  </div>
+</Base>

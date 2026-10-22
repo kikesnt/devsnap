@@ -1,0 +1,158 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="jwt-decoder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Decoded, never transmitted, never verified</span>
+  </div>
+  <div class="tool-body">
+    <div id="jwt-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="jwt-input">JSON Web Token</label>
+      <textarea id="jwt-input" class="short" spellcheck="false" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.signature"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="jwt-decode" type="button">Decode</button>
+      <button class="btn btn-secondary" id="jwt-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jwt-copy" type="button">Copy payload</button>
+    </div>
+
+    <div class="grid-2 mt-2">
+      <div class="field">
+        <label>Header</label>
+        <div class="output-box" id="jwt-header" data-placeholder="The header appears here."></div>
+      </div>
+      <div class="field">
+        <label>Payload</label>
+        <div class="output-box" id="jwt-payload" data-placeholder="The payload appears here."></div>
+      </div>
+    </div>
+
+    <div class="stat-row" id="jwt-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { fromBase64Url } from '../../lib/hash';
+
+  const input = byId<HTMLTextAreaElement>('jwt-input');
+  const headerBox = byId('jwt-header');
+  const payloadBox = byId('jwt-payload');
+  const status = byId('jwt-status');
+  const stats = byId('jwt-stats');
+  const decodeButton = byId<HTMLButtonElement>('jwt-decode');
+  const sampleButton = byId<HTMLButtonElement>('jwt-sample');
+  const copyButton = byId<HTMLButtonElement>('jwt-copy');
+
+  const SAMPLE =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0wMSJ9.eyJpc3MiOiJodHRwczovL2FwaS5kZXZzbmFwLmRldiIsInN1YiI6InVzcl8xMjM0NTY3ODkwIiwibmFtZSI6IkFkYSBMb3ZlbGFjZSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc0ODA4MDAwMCwiZXhwIjoxNzQ4MDg2MDAwLCJhdWQiOlsiYXBpLmRldnNuYXAiXSwid2ViLmFwaSJdLCJqdGkiOiJqLTAxMiJ9.c2lnbmF0dXJlLXBsYWNlaG9sZGVy';
+
+  function decodeSegment(segment: string, label: string): Record<string, unknown> {
+    let json: string;
+    try {
+      json = fromBase64Url(segment);
+    } catch {
+      throw new Error(`The ${label} segment is not valid base64url.`);
+    }
+    try {
+      return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      throw new Error(`The ${label} segment is not valid JSON.`);
+    }
+  }
+
+  function describeClaims(payload: Record<string, unknown>): string {
+    const notes: string[] = [];
+    const now = Date.now() / 1000;
+
+    const exp = payload.exp;
+    if (typeof exp === 'number') {
+      const remaining = exp - now;
+      if (remaining <= 0) {
+        notes.push(`<span class="chip chip-bad">Expired ${formatDuration(-remaining)} ago</span>`);
+      } else {
+        notes.push(`<span class="chip chip-ok">Valid for ${formatDuration(remaining)}</span>`);
+      }
+      notes.push(`<span>Expires <b>${new Date(exp * 1000).toISOString()}</b></span>`);
+    } else {
+      notes.push('<span class="chip">No exp claim</span>');
+    }
+
+    const nbf = payload.nbf;
+    if (typeof nbf === 'number' && nbf > now) {
+      notes.push(`<span class="chip chip-bad">Not valid for another ${formatDuration(nbf - now)}</span>`);
+    }
+
+    if (payload.iss) notes.push(`<span>Issuer <b>${String(payload.iss)}</b></span>`);
+    if (payload.aud) notes.push(`<span>Audience <b>${Array.isArray(payload.aud) ? payload.aud.join(', ') : String(payload.aud)}</b></span>`);
+    if (payload.sub) notes.push(`<span>Subject <b>${String(payload.sub)}</b></span>`);
+    if (payload.iat) notes.push(`<span>Issued <b>${new Date(Number(payload.iat) * 1000).toISOString()}</b></span>`);
+
+    return notes.join('');
+  }
+
+  function formatDuration(seconds: number): string {
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+    return `${Math.round(seconds / 86400)}d`;
+  }
+
+  function decode() {
+    const raw = (input?.value ?? '').trim().replace(/^Bearer\s+/i, '');
+    if (!raw) {
+      if (headerBox) headerBox.textContent = '';
+      if (payloadBox) payloadBox.textContent = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    const segments = raw.split('.');
+    if (segments.length !== 3) {
+      setStatus(
+        status,
+        `A signed JWT has three segments separated by dots, and this one has ${segments.length}. A JWE has five.`,
+        'error'
+      );
+      return;
+    }
+
+    try {
+      const header = decodeSegment(segments[0]!, 'header');
+      const payload = decodeSegment(segments[1]!, 'payload');
+      clearStatus(status);
+      if (headerBox) headerBox.textContent = JSON.stringify(header, null, 2);
+      if (payloadBox) payloadBox.textContent = JSON.stringify(payload, null, 2);
+      if (stats) stats.innerHTML = describeClaims(payload);
+    } catch (error) {
+      if (headerBox) headerBox.textContent = '';
+      if (payloadBox) payloadBox.textContent = '';
+      setStatus(status, (error as Error).message, 'error');
+      if (stats) stats.innerHTML = '';
+    }
+  }
+
+  decodeButton?.addEventListener('click', decode);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    decode();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(payloadBox?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy payload');
+  });
+</script>

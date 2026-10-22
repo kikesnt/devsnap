@@ -1,0 +1,15 @@
+---
+import ToolPage from '../../layouts/ToolPage.astro';
+import { tools } from '../../data/tools';
+
+export function getStaticPaths() {
+  return tools.map((tool) => ({
+    params: { tool: tool.slug },
+    props: { tool },
+  }));
+}
+
+const { tool } = Astro.props;
+---
+
+<ToolPage tool={tool} />

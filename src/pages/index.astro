@@ -1,0 +1,198 @@
+---
+import Base from '../layouts/Base.astro';
+import ToolIcon from '../components/ToolIcon.astro';
+import HeroScene from '../components/HeroScene.astro';
+import AdSlot from '../components/AdSlot.astro';
+import { SITE, AD_SLOTS } from '../config';
+import { tools, toolsByCategory } from '../data/tools';
+import { allGuides as guides } from '../data/guides';
+import { truncate } from '../lib/format';
+
+const grouped = toolsByCategory();
+const featured = ['snapshot', 'json-formatter', 'json-diff', 'regex-tester', 'jwt-decoder', 'qr-generator']
+  .map((slug) => tools.find((tool) => tool.slug === slug))
+  .filter((tool) => tool !== undefined);
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: SITE.name,
+  url: SITE.domain,
+  description: SITE.description,
+  email: SITE.contactEmail,
+};
+
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.name,
+  url: SITE.domain,
+  description: SITE.description,
+  inLanguage: 'en',
+  publisher: { '@type': 'Organization', name: SITE.publisher },
+};
+
+const toolListSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Developer tools',
+  numberOfItems: tools.length,
+  itemListElement: tools.map((tool, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: tool.name,
+    url: `${SITE.domain}/tools/${tool.slug}/`,
+  })),
+};
+---
+
+<Base
+  title={SITE.name}
+  description={SITE.description}
+  canonicalPath="/"
+  ogImage="/og/default.png"
+  schemas={[organizationSchema, websiteSchema, toolListSchema]}
+>
+  <section class="hero">
+    <HeroScene />
+    <div class="wrap">
+      <h1>The developer toolbox that never sees your code.</h1>
+      <p class="lede">
+        {tools.length} free tools for formatting, converting, inspecting and sharing
+        developer data. Every one of them runs entirely in your browser — no account,
+        no upload, no tracking cookie, and nothing you paste is ever transmitted.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/tools/snapshot/">Turn code into a shareable image</a>
+        <a class="btn btn-secondary" href="/tools/">Browse all {tools.length} tools</a>
+      </div>
+      <div class="pill-row">
+        <span class="pill">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Zero uploads
+        </span>
+        <span class="pill">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          No sign-up
+        </span>
+        <span class="pill">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Works offline
+        </span>
+        <span class="pill">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Free forever
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Start here</h2>
+        <p>The six tools that get the most use, and the one that gets shared the most.</p>
+      </div>
+      <div class="card-grid">
+        {
+          featured.map((tool) => (
+            <a class="tool-card" href={`/tools/${tool.slug}/`}>
+              <span class="tc-name">
+                <span class="tc-glyph" aria-hidden="true"><ToolIcon name={tool.icon} size={17} /></span>
+                {tool.name}
+              </span>
+              <span class="tc-desc">{truncate(tool.description, 92)}</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <div class="callout callout-green">
+        <span class="callout-title">Why every tool here runs in your browser</span>
+        <p>
+          A JSON formatter that runs on a server is a formatter that has seen your
+          credentials, your customer records and your internal API responses. These
+          tools use the same JavaScript engine your application would use, inside the
+          page you are already reading. Open your network panel and you will see the
+          page load and nothing else.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  {
+    grouped.map((group) => (
+      <section class="section-tight">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>{group.category}</h2>
+          </div>
+          <div class="card-grid">
+            {group.tools.map((tool) => (
+              <a class="tool-card" href={`/tools/${tool.slug}/`}>
+                <span class="tc-name">
+                  <span class="tc-glyph" aria-hidden="true"><ToolIcon name={tool.icon} size={17} /></span>
+                  {tool.name}
+                </span>
+                <span class="tc-desc">{truncate(tool.description, 92)}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    ))
+  }
+
+  <div class="wrap">
+    <AdSlot slot={AD_SLOTS.belowTool} />
+  </div>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Guides</h2>
+        <p>Longer explanations for the concepts behind the tools.</p>
+      </div>
+      <div class="card-grid">
+        {
+          guides.slice(0, 6).map((guide) => (
+            <a class="tool-card" href={`/guides/${guide.slug}/`}>
+              <span class="tc-name">
+                <span class="tc-glyph" aria-hidden="true"><ToolIcon name="markdown" size={17} /></span>
+                {guide.title}
+              </span>
+              <span class="tc-desc">
+                {guide.readingTime} · {truncate(guide.description, 74)}
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <div class="card" style="text-align:center;padding:36px 24px">
+        <h2 style="margin-top:0">A tool that earns its place in your workflow</h2>
+        <p class="muted" style="max-width:58ch;margin:0 auto 1.2rem">
+          Every tool here does one job, loads instantly and gives you a result you
+          can copy. No dashboard, no onboarding, no paywall halfway through.
+        </p>
+        <a class="btn btn-primary" href="/tools/">Open the toolbox</a>
+      </div>
+    </div>
+  </section>
+</Base>

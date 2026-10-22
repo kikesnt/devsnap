@@ -1,0 +1,145 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import { SITE, ADS_ENABLED, ADSENSE_CLIENT } from '../config';
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+  noIndex?: boolean;
+  /**
+   * Extra JSON-LD nodes injected by the page. Accepts a single node or an
+   * array; a single node is wrapped so the head renderer has one shape to
+   * deal with.
+   */
+  schemas?: object | object[];
+  /** Skip the AdSense loader entirely (error pages, under-construction screens). */
+  hideAds?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonicalPath,
+  ogImage = '/og/default.png',
+  ogType = 'website',
+  noIndex = false,
+  schemas = [],
+  hideAds = false,
+} = Astro.props;
+
+const schemaNodes = Array.isArray(schemas) ? schemas : schemas ? [schemas] : [];
+
+const canonical = `${SITE.domain}${canonicalPath}`;
+const fullTitle = title === SITE.name ? `${SITE.name} — ${SITE.tagline}` : `${title} | ${SITE.name}`;
+const adsActive = ADS_ENABLED && !hideAds;
+---
+
+<!doctype html>
+<html lang={SITE.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {noIndex ? (
+      <meta name="robots" content="noindex, follow" />
+    ) : (
+      <link rel="canonical" href={canonical} />
+    )}
+    <meta name="theme-color" content={SITE.themeColor} />
+
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={`${SITE.domain}${ogImage}`} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content={SITE.locale} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${SITE.domain}${ogImage}`} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <script is:inline>
+      // Applies the stored theme before the first paint, so there is no flash
+      // of the wrong colours. Kept inline and in the head on purpose.
+      (function () {
+        try {
+          var stored = localStorage.getItem('devsnap-theme');
+          var forced = new URLSearchParams(window.location.search).get('theme');
+          var theme =
+            forced === 'light' || forced === 'dark'
+              ? forced
+              : stored === 'light' || stored === 'dark'
+                ? stored
+                : window.matchMedia('(prefers-color-scheme: dark)').matches
+                  ? 'dark'
+                  : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+
+        // The advertising consent state has to be known before any ad slot
+        // is requested, so it is read here rather than in the body.
+        var consent = null;
+        try {
+          var storedConsent = localStorage.getItem('devsnap-consent');
+          consent =
+            storedConsent === 'granted' || storedConsent === 'denied' ? storedConsent : null;
+        } catch (error) {
+          consent = null;
+        }
+        window.__adsConsent = consent ?? 'unknown';
+      })();
+    </script>
+
+    {
+      adsActive && (
+        <script
+          is:inline
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+          crossorigin="anonymous"
+        />
+      )
+    }
+
+    {
+      schemaNodes.length > 0 && (
+        <script
+          type="application/ld+json"
+          is:inline
+          set:html={JSON.stringify(
+            schemaNodes.length === 1
+              ? schemaNodes[0]
+              : { '@context': 'https://schema.org', '@graph': schemaNodes }
+          )}
+        />
+      )
+    }
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer hideAds={hideAds} />
+    <CookieConsent />
+  </body>
+</html>

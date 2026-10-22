@@ -1,0 +1,144 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-schema-validator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Draft 2020-12, validated in your browser</span>
+  </div>
+  <div class="tool-body">
+    <div id="jv-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jv-schema">Schema</label>
+        <textarea id="jv-schema" class="short" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="jv-instance">Document</label>
+        <textarea id="jv-instance" class="short" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="jv-validate" type="button">Validate</button>
+      <button class="btn btn-secondary" id="jv-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jv-copy" type="button">Copy report</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Violations</span><span id="jv-stats"></span></div>
+      <div class="output-box" id="jv-output" data-placeholder="The validation result appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { validateJson } from '../../lib/jsonrepair';
+
+  const schemaInput = byId<HTMLTextAreaElement>('jv-schema');
+  const instanceInput = byId<HTMLTextAreaElement>('jv-instance');
+  const output = byId('jv-output');
+  const status = byId('jv-status');
+  const stats = byId('jv-stats');
+  const validateButton = byId<HTMLButtonElement>('jv-validate');
+  const sampleButton = byId<HTMLButtonElement>('jv-sample');
+  const copyButton = byId<HTMLButtonElement>('jv-copy');
+
+  const SAMPLE_SCHEMA = `{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["id", "email", "role"],
+  "properties": {
+    "id": { "type": "integer", "minimum": 1 },
+    "email": { "type": "string", "format": "email" },
+    "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
+    "active": { "type": "boolean" },
+    "nickname": { "type": "string", "maxLength": 24 }
+  },
+  "additionalProperties": false
+}`;
+
+  const SAMPLE_INSTANCE = `{
+  "id": 42,
+  "email": "ada@example.com",
+  "role": "admin",
+  "active": true,
+  "nickname": "Ada Lovelace"
+}`;
+
+  function validate() {
+    const schemaText = (schemaInput?.value ?? '').trim();
+    const instanceText = (instanceInput?.value ?? '').trim();
+
+    if (!schemaText || !instanceText) {
+      setStatus(status, 'Provide both a schema and a document to validate.', 'error');
+      return;
+    }
+
+    let schema: unknown;
+    try {
+      schema = JSON.parse(schemaText);
+    } catch (error) {
+      setStatus(status, `The schema is not valid JSON: ${(error as Error).message}`, 'error');
+      return;
+    }
+
+    let instance: unknown;
+    try {
+      instance = JSON.parse(instanceText);
+    } catch (error) {
+      setStatus(status, `The document is not valid JSON: ${(error as Error).message}`, 'error');
+      return;
+    }
+
+    const errors = validateJson(instance, schema);
+
+    if (errors.length === 0) {
+      clearStatus(status);
+      if (output) output.textContent = 'The document satisfies every rule in the schema.';
+      if (stats) stats.textContent = 'valid';
+      return;
+    }
+
+    clearStatus(status);
+    const lines = errors.map((error, index) => {
+      const detail = [
+        error.expected ? `expected ${error.expected}` : '',
+        error.actual ? `received ${error.actual}` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      return `${String(index + 1).padStart(2, '0')}. ${error.path}\n    ${error.keyword} — ${error.message}${
+        detail ? `\n    ${detail}` : ''
+      }`;
+    });
+    if (output) output.textContent = lines.join('\n\n');
+    if (stats) stats.textContent = `${errors.length} violation${errors.length === 1 ? '' : 's'}`;
+  }
+
+  validateButton?.addEventListener('click', validate);
+  sampleButton?.addEventListener('click', () => {
+    if (schemaInput) schemaInput.value = SAMPLE_SCHEMA;
+    if (instanceInput) instanceInput.value = SAMPLE_INSTANCE;
+    validate();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy report');
+  });
+
+  if (schemaInput) schemaInput.value = SAMPLE_SCHEMA;
+  if (instanceInput) instanceInput.value = SAMPLE_INSTANCE;
+  validate();
+</script>

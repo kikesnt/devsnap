@@ -1,0 +1,130 @@
+---
+import Base from '../../layouts/Base.astro';
+import ToolIcon from '../../components/ToolIcon.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import { SITE, AD_SLOTS } from '../../config';
+import { allGuides as guides } from '../../data/guides';
+import { toolBySlug } from '../../data/tools';
+import { truncate } from '../../lib/format';
+
+export function getStaticPaths() {
+  return guides.map((guide) => ({
+    params: { guide: guide.slug },
+    props: { guide },
+  }));
+}
+
+const { guide } = Astro.props;
+const relatedTools = guide.relatedTools
+  .map((slug) => toolBySlug.get(slug))
+  .filter((tool) => tool !== undefined);
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: guide.title,
+  description: guide.description,
+  dateModified: guide.updated,
+  author: { '@type': 'Organization', name: SITE.publisher },
+  publisher: { '@type': 'Organization', name: SITE.publisher },
+  mainEntityOfPage: `${SITE.domain}/guides/${guide.slug}/`,
+};
+---
+
+<Base
+  title={guide.title}
+  description={guide.description}
+  canonicalPath={`/guides/${guide.slug}/`}
+  ogImage={`/og/guides/${guide.slug}.png`}
+  ogType="article"
+  schemas={articleSchema}
+>
+  <div class="wrap">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li><a href="/guides/">Guides</a></li>
+      <li>{guide.title}</li>
+    </ol>
+
+    <div class="layout-split">
+      <article>
+        <header class="tool-hero">
+          <h1>{guide.h1}</h1>
+          <p class="lede">{guide.lede}</p>
+          <p class="updated-note">
+            By {SITE.author} · {guide.readingTime} · Last reviewed {guide.updated}
+          </p>
+        </header>
+
+        {
+          guide.sections.map((section, index) => (
+            <section class="prose" id={`section-${index}`}>
+              <h2>{section.heading}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p set:html={paragraph} />
+              ))}
+              {section.code && <pre><code set:html={section.code} /></pre>}
+              {section.list && (
+                <ul>
+                  {section.list.map((item) => (
+                    <li set:html={item} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))
+        }
+
+        <AdSlot slot={AD_SLOTS.inArticle} />
+
+        <section class="hr-top">
+          <h2>What to take away</h2>
+          <div class="callout callout-green">
+            <ul style="margin:0;padding-left:1.2rem">
+              {guide.takeaways.map((takeaway) => (
+                <li set:html={takeaway} />
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section class="hr-top">
+          <h2>Related tools</h2>
+          <div class="related-grid">
+            {
+              relatedTools.map((tool) => (
+                <a href={`/tools/${tool.slug}/`}>
+                  {tool.name}
+                  <span>{truncate(tool.description, 74)}</span>
+                </a>
+              ))
+            }
+          </div>
+        </section>
+      </article>
+
+      <aside>
+        <div class="card">
+          <h2 style="font-size:0.95rem;margin:0 0 10px">In this guide</h2>
+          <ul style="list-style:none;padding:0;margin:0;font-size:0.87rem">
+            {
+              guide.sections.map((section, index) => (
+                <li style="margin-bottom:6px">
+                  <a href={`#section-${index}`}>{section.heading}</a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+
+        <div class="card mt-3">
+          <h2 style="font-size:0.95rem;margin:0 0 6px">Try the tools</h2>
+          <p class="small muted" style="margin:0">
+            Every tool referenced in this guide runs in your browser and sends nothing
+            anywhere.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</Base>

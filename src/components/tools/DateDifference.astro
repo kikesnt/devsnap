@@ -1,0 +1,220 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="date-difference">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Each date has its own timezone</span>
+  </div>
+  <div class="tool-body">
+    <div class="grid-2">
+      <div class="field">
+        <label for="dd-start">From</label>
+        <input type="datetime-local" id="dd-start" />
+        <select id="dd-start-zone" style="margin-top:8px" aria-label="Start timezone">
+          <option value="local">Local timezone</option>
+          <option value="UTC">UTC</option>
+          <option value="-05:00">UTC-05:00 (New York)</option>
+          <option value="+00:00">UTC+00:00 (London)</option>
+          <option value="+01:00">UTC+01:00 (Berlin)</option>
+          <option value="+09:00">UTC+09:00 (Tokyo)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="dd-end">To</label>
+        <input type="datetime-local" id="dd-end" />
+        <select id="dd-end-zone" style="margin-top:8px" aria-label="End timezone">
+          <option value="local">Local timezone</option>
+          <option value="UTC">UTC</option>
+          <option value="-05:00">UTC-05:00 (New York)</option>
+          <option value="+00:00">UTC+00:00 (London)</option>
+          <option value="+01:00">UTC+01:00 (Berlin)</option>
+          <option value="+09:00">UTC+09:00 (Tokyo)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="dd-calc" type="button">Calculate</button>
+      <button class="btn btn-secondary" id="dd-now" type="button">Now to now</button>
+      <button class="btn btn-secondary" id="dd-plus" type="button">Add 30 days</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="dd-copy" type="button">Copy summary</button>
+    </div>
+
+    <div class="grid-3 mt-3">
+      <div class="fact">
+        <span class="fact-label">Calendar days</span>
+        <span class="fact-value" id="dd-days">—</span>
+      </div>
+      <div class="fact">
+        <span class="fact-label">Working days</span>
+        <span class="fact-value" id="dd-workdays">—</span>
+      </div>
+      <div class="fact">
+        <span class="fact-label">Total hours</span>
+        <span class="fact-value" id="dd-hours">—</span>
+      </div>
+    </div>
+
+    <div class="table-wrap mt-3">
+      <table>
+        <thead><tr><th style="width:220px">Unit</th><th>Value</th></tr></thead>
+        <tbody id="dd-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const startInput = byId<HTMLInputElement>('dd-start');
+  const endInput = byId<HTMLInputElement>('dd-end');
+  const startZone = byId<HTMLSelectElement>('dd-start-zone');
+  const endZone = byId<HTMLSelectElement>('dd-end-zone');
+  const daysBox = byId('dd-days');
+  const workdaysBox = byId('dd-workdays');
+  const hoursBox = byId('dd-hours');
+  const rows = byId('dd-rows');
+  const status = byId('dd-status');
+  const calculateButton = byId<HTMLButtonElement>('dd-calc');
+  const nowButton = byId<HTMLButtonElement>('dd-now');
+  const plusButton = byId<HTMLButtonElement>('dd-plus');
+  const copyButton = byId<HTMLButtonElement>('dd-copy');
+
+  function toDate(value: string, zone: string): Date | null {
+    if (!value) return null;
+    const [datePart, timePart] = value.split('T');
+    const [year, month, day] = (datePart ?? '').split('-').map(Number);
+    const [hour, minute] = (timePart ?? '00:00').split(':').map(Number);
+    if (!year || !month || !day) return null;
+
+    if (zone === 'local') {
+      return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
+    }
+    const offsetHours = zone === 'UTC' ? 0 : Number(zone.split(':')[0]);
+    const utc = Date.UTC(year, month - 1, day, hour || 0, minute || 0, 0, 0);
+    return new Date(utc - offsetHours * 3600_000);
+  }
+
+  function countWorkingDays(from: Date, to: Date): number {
+    const start = new Date(Math.min(from.getTime(), to.getTime()));
+    const end = new Date(Math.max(from.getTime(), to.getTime()));
+    let count = 0;
+    const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    while (cursor <= last) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) count += 1;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return count;
+  }
+
+  function calendarDays(from: Date, to: Date): number {
+    const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    return Math.round(Math.abs(b.getTime() - a.getTime()) / 86400000);
+  }
+
+  function wholeMonths(from: Date, to: Date): number {
+    const sign = to >= from ? 1 : -1;
+    const a = sign === 1 ? from : to;
+    const b = sign === 1 ? to : from;
+    let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+    if (b.getDate() < a.getDate()) months -= 1;
+    return months * sign;
+  }
+
+  function formatLocal(date: Date): string {
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function calculate() {
+    const from = toDate(startInput?.value ?? '', startZone?.value ?? 'local');
+    const to = toDate(endInput?.value ?? '', endZone?.value ?? 'local');
+
+    if (!from || !to) {
+      setStatus(status, 'Pick both dates to calculate the difference.', 'error');
+      return;
+    }
+
+    clearStatus(status);
+    const milliseconds = to.getTime() - from.getTime();
+    const absolute = Math.abs(milliseconds);
+    const days = calendarDays(from, to);
+    const workdays = countWorkingDays(from, to);
+    const hours = absolute / 3600000;
+    const minutes = absolute / 60000;
+    const weeks = Math.floor(days / 7);
+    const remainingDays = days % 7;
+    const months = wholeMonths(from, to);
+    const years = Math.abs(months) / 12;
+
+    if (daysBox) daysBox.textContent = String(days);
+    if (workdaysBox) workdaysBox.textContent = String(workdays);
+    if (hoursBox) hoursBox.textContent = Math.round(hours).toLocaleString('en-US');
+
+    const entries: [string, string][] = [
+      ['Direction', milliseconds >= 0 ? 'forward' : 'backward'],
+      ['Start', formatLocal(from)],
+      ['End', formatLocal(to)],
+      ['Total days', String(days)],
+      ['Working days (Mon–Fri)', String(workdays)],
+      ['Full weeks', `${weeks} week${weeks === 1 ? '' : 's'} and ${remainingDays} day${remainingDays === 1 ? '' : 's'}`],
+      ['Calendar months', String(months)],
+      ['Years (approximate)', years.toFixed(2)],
+      ['Total hours', Math.round(hours).toLocaleString('en-US')],
+      ['Total minutes', Math.round(minutes).toLocaleString('en-US')],
+      ['Total seconds', Math.round(absolute / 1000).toLocaleString('en-US')],
+    ];
+
+    if (rows) {
+      rows.innerHTML = entries
+        .map(([label, value]) => `<tr><td>${label}</td><td><code>${value}</code></td></tr>`)
+        .join('');
+    }
+  }
+
+  calculateButton?.addEventListener('click', calculate);
+  nowButton?.addEventListener('click', () => {
+    const now = new Date();
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    const value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (startInput) startInput.value = value;
+    if (endInput) endInput.value = value;
+    calculate();
+  });
+  plusButton?.addEventListener('click', () => {
+    const from = toDate(startInput?.value ?? '', startZone?.value ?? 'local');
+    if (!from) return;
+    const target = new Date(from.getTime() + 30 * 86400000);
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    if (endInput) {
+      endInput.value = `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+    }
+    calculate();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const text = rows?.innerText ?? '';
+    const ok = await copyText(text);
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy summary');
+  });
+
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (startInput) startInput.value = stamp;
+  if (endInput) endInput.value = stamp;
+  calculate();
+</script>

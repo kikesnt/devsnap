@@ -1,0 +1,122 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-repair">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Repairs run in your browser, nothing is uploaded</span>
+  </div>
+  <div class="tool-body">
+    <div id="jr-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jr-input">Broken JSON</label>
+        <textarea id="jr-input" spellcheck="false" placeholder='{ "name": "devsnap", "tools": 29, }'></textarea>
+      </div>
+      <div class="field">
+        <label for="jr-output">Repaired</label>
+        <textarea id="jr-output" class="tall" spellcheck="false" readonly placeholder="The repaired JSON appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="jr-repair" type="button">Repair</button>
+      <button class="btn btn-secondary" id="jr-sample" type="button">Load broken sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jr-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>What was changed</span><span id="jr-stats"></span></div>
+      <div class="output-box" id="jr-fixes" data-placeholder="The repairs applied are listed here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { repairJson } from '../../lib/jsonrepair';
+
+  const input = byId<HTMLTextAreaElement>('jr-input');
+  const output = byId<HTMLTextAreaElement>('jr-output');
+  const fixes = byId('jr-fixes');
+  const status = byId('jr-status');
+  const stats = byId('jr-stats');
+  const repairButton = byId<HTMLButtonElement>('jr-repair');
+  const sampleButton = byId<HTMLButtonElement>('jr-sample');
+  const copyButton = byId<HTMLButtonElement>('jr-copy');
+
+  const SAMPLE = `{
+    // the tools this site ships with
+    'name': 'devsnap',
+    "tools": 29,
+    "clientSide": true,
+    'tags': ['json', 'regex', 'jwt'],
+    "metadata": {
+      "author": "Enrique M.",
+    },
+  }`;
+
+  function repair() {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.value = '';
+      if (fixes) fixes.textContent = '';
+      clearStatus(status);
+      if (stats) stats.textContent = '';
+      return;
+    }
+
+    const result = repairJson(raw);
+
+    if (!result.ok) {
+      if (output) output.value = '';
+      setStatus(
+        status,
+        `This could not be repaired: ${result.error}. The fixes below were applied before it failed.`,
+        'error'
+      );
+    } else {
+      clearStatus(status);
+      if (output) output.value = result.text ?? '';
+      setStatus(
+        status,
+        result.fixes.length === 1 && result.fixes[0]?.startsWith('The input was already')
+          ? 'The input was already valid JSON.'
+          : 'Repaired successfully. Check the list of changes below.',
+        'ok'
+      );
+    }
+
+    if (fixes) {
+      fixes.textContent = result.fixes.length
+        ? result.fixes.map((fix, index) => `${index + 1}. ${fix}`).join('\n')
+        : 'No changes were needed.';
+    }
+    if (stats) {
+      stats.textContent = `${result.fixes.length} change${result.fixes.length === 1 ? '' : 's'}`;
+    }
+  }
+
+  repairButton?.addEventListener('click', repair);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    repair();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+
+  if (input) input.value = SAMPLE;
+  repair();
+</script>

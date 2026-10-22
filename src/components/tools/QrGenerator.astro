@@ -1,0 +1,296 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="qr-generator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Encoded and drawn locally</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-actions">
+      <select id="qr-preset" aria-label="Content type">
+        <option value="url">URL</option>
+        <option value="wifi">WiFi network</option>
+        <option value="vcard">Contact (vCard)</option>
+        <option value="email">Email</option>
+        <option value="sms">SMS</option>
+        <option value="event">Calendar event</option>
+        <option value="text">Plain text</option>
+      </select>
+      <button class="btn btn-secondary" id="qr-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="qr-download" type="button">Download PNG</button>
+      <button class="btn btn-ghost" id="qr-svg" type="button">Download SVG</button>
+    </div>
+
+    <div class="grid-2 mt-2" id="qr-fields">
+      <div class="field" data-for="url">
+        <label for="qr-url">URL</label>
+        <input type="text" id="qr-url" spellcheck="false" value="https://devsnap.cc/tools/snapshot/" />
+      </div>
+
+      <div class="field" data-for="wifi" hidden>
+        <label for="qr-ssid">Network name</label>
+        <input type="text" id="qr-ssid" spellcheck="false" value="Guest WiFi" />
+      </div>
+      <div class="field" data-for="wifi" hidden>
+        <label for="qr-password">Password</label>
+        <input type="text" id="qr-password" spellcheck="false" value="welcome-2026" />
+      </div>
+      <div class="field" data-for="wifi" hidden>
+        <label for="qr-security">Security</label>
+        <select id="qr-security">
+          <option value="WPA">WPA / WPA2 / WPA3</option>
+          <option value="WEP">WEP</option>
+          <option value="nopass">No password</option>
+        </select>
+      </div>
+      <div class="field" data-for="wifi" hidden>
+        <label for="qr-hidden">Hidden network</label>
+        <select id="qr-hidden">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-firstname">First name</label>
+        <input type="text" id="qr-firstname" spellcheck="false" value="Ada" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-lastname">Last name</label>
+        <input type="text" id="qr-lastname" spellcheck="false" value="Lovelace" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-organization">Organisation</label>
+        <input type="text" id="qr-organization" spellcheck="false" value="Analytical Engines" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-phone">Phone</label>
+        <input type="text" id="qr-phone" spellcheck="false" value="+351 210 000 000" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-vemail">Email</label>
+        <input type="text" id="qr-vemail" spellcheck="false" value="ada@example.com" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-address">Address</label>
+        <input type="text" id="qr-address" spellcheck="false" value="Rua da Prata 80, Lisbon" />
+      </div>
+      <div class="field" data-for="vcard" hidden>
+        <label for="qr-website">Website</label>
+        <input type="text" id="qr-website" spellcheck="false" value="https://example.com" />
+      </div>
+
+      <div class="field" data-for="email" hidden>
+        <label for="qr-to">To</label>
+        <input type="text" id="qr-to" spellcheck="false" value="hello@example.com" />
+      </div>
+      <div class="field" data-for="email" hidden>
+        <label for="qr-subject">Subject</label>
+        <input type="text" id="qr-subject" spellcheck="false" value="Hello from DevSnap" />
+      </div>
+      <div class="field" data-for="email" hidden>
+        <label for="qr-body">Message</label>
+        <textarea id="qr-body" class="short"></textarea>
+      </div>
+
+      <div class="field" data-for="sms" hidden>
+        <label for="qr-phone">Phone number</label>
+        <input type="text" id="qr-smsphone" spellcheck="false" value="+351 210 000 000" />
+      </div>
+      <div class="field" data-for="sms" hidden>
+        <label for="qr-smsbody">Message</label>
+        <textarea id="qr-smsbody" class="short"></textarea>
+      </div>
+
+      <div class="field" data-for="event" hidden>
+        <label for="qr-eventtitle">Title</label>
+        <input type="text" id="qr-eventtitle" spellcheck="false" value="DevSnap launch" />
+      </div>
+      <div class="field" data-for="event" hidden>
+        <label for="qr-start">Starts</label>
+        <input type="datetime-local" id="qr-start" />
+      </div>
+      <div class="field" data-for="event" hidden>
+        <label for="qr-end">Ends</label>
+        <input type="datetime-local" id="qr-end" />
+      </div>
+      <div class="field" data-for="event" hidden>
+        <label for="qr-location">Location</label>
+        <input type="text" id="qr-location" spellcheck="false" value="Lisbon" />
+      </div>
+
+      <div class="field" data-for="text" hidden>
+        <label for="qr-text">Text</label>
+        <textarea id="qr-text" class="short"></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <label for="qr-fg" class="mb-0">Foreground</label>
+      <input type="color" id="qr-fg" value="#0b1020" style="width:46px;height:36px;padding:2px" />
+      <label for="qr-bg" class="mb-0">Background</label>
+      <input type="color" id="qr-bg" value="#ffffff" style="width:46px;height:36px;padding:2px" />
+      <label for="qr-size" class="mb-0">Size</label>
+      <input type="number" id="qr-size" value="8" min="3" max="20" style="width:70px" />
+      <label for="qr-level" class="mb-0">Error correction</label>
+      <select id="qr-level">
+        <option value="L">L — 7%</option>
+        <option value="M" selected>M — 15%</option>
+        <option value="Q">Q — 25%</option>
+        <option value="H">H — 30%</option>
+      </select>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-primary" id="qr-generate" type="button">Generate</button>
+    </div>
+
+    <div class="grid-2 mt-3">
+      <div class="field">
+        <label>Preview</label>
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg-subtle);display:grid;place-items:center">
+          <canvas id="qr-canvas" style="max-width:100%;height:auto"></canvas>
+        </div>
+      </div>
+      <div class="field">
+        <label>Encoded payload</label>
+        <div class="output-box" id="qr-payload" data-placeholder="The payload appears here."></div>
+        <div class="stat-row mt-2" id="qr-stats"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, downloadBlob } from '../../lib/dom';
+  import { buildQr, drawQr, qrToSvg, canvasToBlob, buildPayload } from '../../lib/qr';
+  import type { QrOptions, QrPreset } from '../../lib/qr';
+
+  const canvas = byId<HTMLCanvasElement>('qr-canvas');
+  const payloadBox = byId('qr-payload');
+  const stats = byId('qr-stats');
+  const status = byId('qr-status');
+  const presetSelect = byId<HTMLSelectElement>('qr-preset');
+  const fieldContainer = byId('qr-fields');
+  const fgPicker = byId<HTMLInputElement>('qr-fg');
+  const bgPicker = byId<HTMLInputElement>('qr-bg');
+  const sizeInput = byId<HTMLInputElement>('qr-size');
+  const levelSelect = byId<HTMLSelectElement>('qr-level');
+  const generateButton = byId<HTMLButtonElement>('qr-generate');
+  const sampleButton = byId<HTMLButtonElement>('qr-sample');
+  const downloadButton = byId<HTMLButtonElement>('qr-download');
+  const svgButton = byId<HTMLButtonElement>('qr-svg');
+
+  function currentValues(): Record<string, string> {
+    return {
+      url: byId<HTMLInputElement>('qr-url')?.value ?? '',
+      ssid: byId<HTMLInputElement>('qr-ssid')?.value ?? '',
+      password: byId<HTMLInputElement>('qr-password')?.value ?? '',
+      security: byId<HTMLSelectElement>('qr-security')?.value ?? 'WPA',
+      hidden: byId<HTMLSelectElement>('qr-hidden')?.value ?? 'false',
+      firstName: byId<HTMLInputElement>('qr-firstname')?.value ?? '',
+      lastName: byId<HTMLInputElement>('qr-lastname')?.value ?? '',
+      organization: byId<HTMLInputElement>('qr-organization')?.value ?? '',
+      phone: byId<HTMLInputElement>('qr-phone')?.value ?? '',
+      email: byId<HTMLInputElement>('qr-vemail')?.value ?? '',
+      website: byId<HTMLInputElement>('qr-website')?.value ?? '',
+      address: byId<HTMLInputElement>('qr-address')?.value ?? '',
+      to: byId<HTMLInputElement>('qr-to')?.value ?? '',
+      subject: byId<HTMLInputElement>('qr-subject')?.value ?? '',
+      body: byId<HTMLTextAreaElement>('qr-body')?.value ?? '',
+      text: byId<HTMLTextAreaElement>('qr-text')?.value ?? '',
+      title: byId<HTMLInputElement>('qr-eventtitle')?.value ?? '',
+      start: byId<HTMLInputElement>('qr-start')?.value ?? '',
+      end: byId<HTMLInputElement>('qr-end')?.value ?? '',
+      location: byId<HTMLInputElement>('qr-location')?.value ?? '',
+    };
+  }
+
+  function toggleFields(preset: string) {
+    fieldContainer?.querySelectorAll<HTMLElement>('[data-for]').forEach((element) => {
+      element.hidden = element.getAttribute('data-for') !== preset;
+    });
+  }
+
+  function generate() {
+    if (!canvas) return;
+    const preset = (presetSelect?.value ?? 'url') as QrPreset;
+    const payload = buildPayload(preset, currentValues());
+    if (!payload.trim()) {
+      setStatus(status, 'Fill in the content for the code.', 'error');
+      return;
+    }
+    clearStatus(status);
+
+    const options: QrOptions = {
+      errorLevel: (levelSelect?.value ?? 'M') as QrOptions['errorLevel'],
+      cellSize: Math.max(3, Math.min(20, Number(sizeInput?.value ?? 8))),
+      margin: 4,
+      foreground: fgPicker?.value ?? '#0b1020',
+      background: bgPicker?.value ?? '#ffffff',
+    };
+
+    try {
+      const matrix = buildQr(payload, options);
+      drawQr(canvas, matrix, options);
+      if (payloadBox) payloadBox.textContent = payload;
+      if (stats) {
+        stats.innerHTML = `<span><b>${matrix.size}×${matrix.size}</b> modules</span><span><b>${payload.length}</b> characters</span><span>Error correction <b>${options.errorLevel}</b></span>`;
+      }
+      canvas.dataset.matrix = matrix.size;
+    } catch (error) {
+      setStatus(status, `The code could not be generated: ${(error as Error).message}`, 'error');
+    }
+  }
+
+  presetSelect?.addEventListener('change', () => {
+    toggleFields(presetSelect.value);
+    generate();
+  });
+  generateButton?.addEventListener('click', generate);
+  fgPicker?.addEventListener('input', generate);
+  bgPicker?.addEventListener('input', generate);
+  sizeInput?.addEventListener('change', generate);
+  levelSelect?.addEventListener('change', generate);
+  sampleButton?.addEventListener('click', () => {
+    if (presetSelect) presetSelect.value = 'wifi';
+    toggleFields('wifi');
+    generate();
+  });
+
+  downloadButton?.addEventListener('click', async () => {
+    if (!canvas) return;
+    const blob = await canvasToBlob(canvas);
+    downloadBlob(blob, 'devsnap-qr.png');
+  });
+
+  svgButton?.addEventListener('click', () => {
+    const preset = (presetSelect?.value ?? 'url') as QrPreset;
+    const payload = buildPayload(preset, currentValues());
+    const options: QrOptions = {
+      errorLevel: (levelSelect?.value ?? 'M') as QrOptions['errorLevel'],
+      cellSize: Math.max(3, Math.min(20, Number(sizeInput?.value ?? 8))),
+      margin: 4,
+      foreground: fgPicker?.value ?? '#0b1020',
+      background: bgPicker?.value ?? '#ffffff',
+    };
+    try {
+      const matrix = buildQr(payload, options);
+      const svg = qrToSvg(matrix, options);
+      downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'devsnap-qr.svg');
+    } catch {
+      setStatus(status, 'The code could not be generated.', 'error');
+    }
+  });
+
+  toggleFields('url');
+  generate();
+</script>

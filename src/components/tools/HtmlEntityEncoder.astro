@@ -1,0 +1,133 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="html-entity-encoder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Named, decimal and hexadecimal references</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="hee-input">Text</label>
+      <textarea id="hee-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <div class="toggle-group" role="group" aria-label="Direction">
+        <button type="button" id="hee-encode" aria-pressed="true">Encode</button>
+        <button type="button" id="hee-decode" aria-pressed="false">Decode</button>
+      </div>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="hee-strict" style="width:auto" />
+        Strict mode (quotes and slashes)
+      </label>
+      <button class="btn btn-primary" id="hee-apply" type="button">Apply</button>
+      <button class="btn btn-secondary" id="hee-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="hee-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Result</span><span id="hee-stats"></span></div>
+      <div class="output-box" id="hee-output" data-placeholder="The result appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('hee-input');
+  const output = byId('hee-output');
+  const stats = byId('hee-stats');
+  const encodeButton = byId<HTMLButtonElement>('hee-encode');
+  const decodeButton = byId<HTMLButtonElement>('hee-decode');
+  const strictToggle = byId<HTMLInputElement>('hee-strict');
+  const applyButton = byId<HTMLButtonElement>('hee-apply');
+  const sampleButton = byId<HTMLButtonElement>('hee-sample');
+  const copyButton = byId<HTMLButtonElement>('hee-copy');
+
+  const NAMED: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+
+  const MINIMAL = ['&', '<', '>'];
+  const STRICT = ['&', '<', '>', '"', "'", '/'];
+
+  let direction: 'encode' | 'decode' = 'encode';
+
+  const ENCODE_SAMPLE = `Tom & Jerry said: "5 < 10 && 10 > 5" <script>alert('x')<\/script>`;
+  const DECODE_SAMPLE = `Tom &amp; Jerry said: &quot;5 &lt; 10 &amp;&amp; 10 &gt; 5&quot; &#8212; done`;
+
+  function encodeText(text: string, strict: boolean): string {
+    const table = strict ? STRICT : MINIMAL;
+    const named = strict ? NAMED : { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
+    let out = '';
+    for (const char of text) {
+      if (table.includes(char)) {
+        out += named[char] ?? `&#${char.codePointAt(0)};`;
+      } else {
+        out += char;
+      }
+    }
+    return out;
+  }
+
+  function decodeText(text: string): string {
+    return text
+      .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_match, dec: string) => String.fromCodePoint(Number(dec)))
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+  }
+
+  function apply() {
+    const raw = input?.value ?? '';
+    const strict = strictToggle?.checked ?? false;
+    const result = direction === 'encode' ? encodeText(raw, strict) : decodeText(raw);
+    if (output) output.textContent = result;
+    if (stats) {
+      const changed = (raw.match(/[&<>"']/g) ?? []).length;
+      stats.textContent = `${result.length.toLocaleString('en-US')} characters · ${changed} escaped`;
+    }
+  }
+
+  function setDirection(next: 'encode' | 'decode') {
+    direction = next;
+    encodeButton?.setAttribute('aria-pressed', String(next === 'encode'));
+    decodeButton?.setAttribute('aria-pressed', String(next === 'decode'));
+    if (input) {
+      input.value = next === 'encode' ? ENCODE_SAMPLE : DECODE_SAMPLE;
+    }
+    apply();
+  }
+
+  encodeButton?.addEventListener('click', () => setDirection('encode'));
+  decodeButton?.addEventListener('click', () => setDirection('decode'));
+  strictToggle?.addEventListener('change', apply);
+  applyButton?.addEventListener('click', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = direction === 'encode' ? ENCODE_SAMPLE : DECODE_SAMPLE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+</script>

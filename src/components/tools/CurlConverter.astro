@@ -1,0 +1,112 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="curl-converter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>A copied command usually carries a token. It stays here.</span>
+  </div>
+  <div class="tool-body">
+    <div id="cc-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="cur-input">cURL command</label>
+      <textarea id="cur-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="cur-target" aria-label="Target language"></select>
+      <button class="btn btn-primary" id="cur-convert" type="button">Convert</button>
+      <button class="btn btn-secondary" id="cur-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="cur-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Converted request</span><span id="cur-stats"></span></div>
+      <div class="output-box" id="cc-output" data-placeholder="The converted request appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { parseCurl, convertCurl, curlTargets } from '../../lib/curlconverter';
+  import type { CurlTarget } from '../../lib/curlconverter';
+
+  const input = byId<HTMLTextAreaElement>('cur-input');
+  const output = byId('cur-output');
+  const status = byId('cc-status');
+  const stats = byId('cur-stats');
+  const targetSelect = byId<HTMLSelectElement>('cur-target');
+  const convertButton = byId<HTMLButtonElement>('cur-convert');
+  const sampleButton = byId<HTMLButtonElement>('cur-sample');
+  const copyButton = byId<HTMLButtonElement>('cur-copy');
+
+  const SAMPLE = `curl 'https://api.example.com/v1/orders?status=paid' \\
+  -X POST \\
+  -H 'Authorization: Bearer sk_live_51H8xQ2eZvKYlo2C' \\
+  -H 'Content-Type: application/json' \\
+  -H 'X-Request-Id: 8f2a1c4b' \\
+  --data-raw '{"orderId": 42, "items": [{"sku": "ABC-1", "qty": 2}], "note": "leave at the door"}'`;
+
+  for (const target of curlTargets) {
+    const option = document.createElement('option');
+    option.value = target.id;
+    option.textContent = target.label;
+    targetSelect?.appendChild(option);
+  }
+
+  function convert() {
+    const raw = (input?.value ?? '').trim();
+    if (!raw) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.textContent = '';
+      return;
+    }
+
+    const parsed = parseCurl(raw);
+    if (!parsed.url) {
+      setStatus(status, 'No URL was found in that command.', 'error');
+      return;
+    }
+
+    const target = (targetSelect?.value ?? 'fetch') as CurlTarget;
+    const result = convertCurl(parsed, target);
+
+    clearStatus(status);
+    if (output) output.textContent = result;
+
+    const bits = [
+      `<span><b>${parsed.method}</b> method</span>`,
+      `<span><b>${parsed.headers.length}</b> header${parsed.headers.length === 1 ? '' : 's'}</span>`,
+    ];
+    if (parsed.body !== undefined) bits.push('<span>body included</span>');
+    if (parsed.cookies) bits.push('<span>cookies included</span>');
+    if (parsed.insecure) bits.push('<span class="chip chip-bad">certificate check disabled</span>');
+    if (stats) stats.innerHTML = bits.join('');
+  }
+
+  convertButton?.addEventListener('click', convert);
+  targetSelect?.addEventListener('change', convert);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    convert();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+
+  if (input) input.value = SAMPLE;
+  convert();
+</script>

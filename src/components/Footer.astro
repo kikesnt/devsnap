@@ -1,0 +1,103 @@
+---
+import { SITE } from '../config';
+import AdSlot from './AdSlot.astro';
+import { AD_SLOTS } from '../config';
+
+interface Props {
+  /** Error screens and under-construction pages must carry no ad markup. */
+  hideAds?: boolean;
+}
+
+const { hideAds = false } = Astro.props;
+
+const year = new Date().getFullYear();
+const groups = [
+  {
+    title: 'Popular tools',
+    links: [
+      { href: '/tools/snapshot/', label: 'Code Snapshot' },
+      { href: '/tools/json-formatter/', label: 'JSON Formatter' },
+      { href: '/tools/json-diff/', label: 'JSON Diff' },
+      { href: '/tools/regex-tester/', label: 'Regex Tester' },
+      { href: '/tools/jwt-decoder/', label: 'JWT Decoder' },
+      { href: '/tools/cron-builder/', label: 'Cron Builder' },
+    ],
+  },
+  {
+    title: 'Converters',
+    links: [
+      { href: '/tools/yaml-to-json/', label: 'YAML → JSON' },
+      { href: '/tools/csv-to-json/', label: 'CSV → JSON' },
+      { href: '/tools/json-to-csv/', label: 'JSON → CSV' },
+      { href: '/tools/base64-encoder/', label: 'Base64 Encoder' },
+      { href: '/tools/url-encoder/', label: 'URL Encoder' },
+      { href: '/tools/sql-formatter/', label: 'SQL Formatter' },
+    ],
+  },
+  {
+    title: 'Dev utilities',
+    links: [
+      { href: '/tools/uuid-generator/', label: 'UUID Generator' },
+      { href: '/tools/hash-generator/', label: 'Hash Generator' },
+      { href: '/tools/timestamp-converter/', label: 'Timestamp Converter' },
+      { href: '/tools/json-schema-generator/', label: 'JSON Schema Generator' },
+      { href: '/tools/qr-generator/', label: 'QR Code Generator' },
+      { href: '/tools/color-contrast-checker/', label: 'Contrast Checker' },
+    ],
+  },
+  {
+    title: 'DevSnap',
+    links: [
+      { href: '/about/', label: 'About' },
+      { href: '/contact/', label: 'Contact' },
+      { href: '/privacy/', label: 'Privacy Policy' },
+      { href: '/terms/', label: 'Terms of Service' },
+      { href: '/disclaimer/', label: 'Disclaimer' },
+    ],
+  },
+];
+---
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true">DS</span>
+          <span>{SITE.name}</span>
+        </a>
+        <p class="mt-2" style="max-width:34ch">
+          {SITE.tagline} Every tool runs client-side, so your payloads, tokens and
+          secrets never leave your machine.
+        </p>
+      </div>
+      {
+        groups.map((group) => (
+          <div>
+            <h4>{group.title}</h4>
+            <ul>
+              {group.links.map((link) => (
+                <li>
+                  <a href={link.href}>{link.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+
+    {!hideAds && <AdSlot slot={AD_SLOTS.footer} variant="footer" />}
+
+    <div class="footer-bottom">
+      <span>
+        © {year} {SITE.publisher}. Written by {SITE.author}. Independent project, not affiliated with
+        Google.
+      </span>
+      <span>
+        Built with Astro. Zero uploads, zero accounts.{' '}
+        <a href="/cookies/" data-consent-reset>Cookie choices</a>
+      </span>
+    </div>
+  </div>
+</footer>

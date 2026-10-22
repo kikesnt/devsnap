@@ -1,0 +1,131 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'How DevSnap makes money',
+  url: `${SITE.domain}/advertising/`,
+  author: { '@type': 'Person', name: SITE.author },
+  publisher: { '@type': 'Organization', name: SITE.publisher },
+};
+---
+
+<Base
+  title="How DevSnap Makes Money — Display Advertising"
+  description="DevSnap is funded by display advertising and nothing else. What that means, where the ads sit, and what we do not do."
+  canonicalPath="/advertising/"
+  schemas={schema}
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Advertising</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>How this site makes money</h1>
+      <p class="lede">
+        One sentence: display advertising, and nothing else. This page explains
+        what that means in practice, because "we make money somehow" is a
+        reasonable thing to want to know about a site you are pasting your data
+        into.
+      </p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>Where the money comes from</h2>
+      <p>
+        {SITE.name} is funded entirely by display advertising. Google AdSense
+        places ads on the pages, and the ad networks pay for the impressions
+        and the clicks. The site is free, there is no paid tier and there is
+        nothing to buy.
+      </p>
+      <p>
+        That is the whole business model. There is no affiliate marketing, no
+        lead selling, no data brokerage, and no paid placement in the tool
+        results.
+      </p>
+
+      <h2>What we do not do</h2>
+      <ul>
+        <li>We do not sell, rent or share your data. We do not have your data in the first place.</li>
+        <li>We do not build a profile of you across websites. We do not run a behavioural advertising system of our own.</li>
+        <li>We do not require an account, and we never ask for an email address.</li>
+        <li>We do not place an advert inside a tool result or next to a value you copied. A tool's output is never an advert.</li>
+        <li>We do not accept payment to change how a tool behaves or what it reports.</li>
+      </ul>
+
+      <h2>Why the tools run in your browser</h2>
+      <p>
+        The tools process your input on your own machine, and nothing is sent
+        to us. This is not a policy promise that could change quietly, it is
+        how the site is built: there is no endpoint that receives what you
+        paste.
+      </p>
+      <p>
+        The practical benefit for you is that a payload containing a customer
+        record, a token or a credential stays on your machine. The benefit for
+        us is that we do not have to handle other people's secrets, which is
+        also why the site is cheap to run.
+      </p>
+
+      <h2>Why the ads look the way they do</h2>
+      <p>
+        The layout is deliberately restrained. Advertisements sit below the
+        tool and inside the article, never on top of the input, never between
+        the tool and its result, and never styled to look like a button, a
+        download link or a navigation item. Each one is labelled as an
+        advertisement, and there is never more than one in a single screen.
+      </p>
+      <p>
+        If a tool page does not have enough content to justify an advert, the
+        advert is not there. We would rather lose the impression than make the
+        page unreadable.
+      </p>
+
+      <h2>Advertisers</h2>
+      <p>
+        Ads are served by Google and its advertising partners. We do not
+        control which advertisements appear, we do not endorse the products
+        or services in them, and we are not responsible for the content of
+        any advertiser's site that you follow from one.
+      </p>
+      <p>
+        If you follow an advert to a site that turns out to be deceptive,
+        report it to Google and we will block the advertiser from this site
+        where we are able to.
+      </p>
+
+      <h2>Your choices</h2>
+      <p>
+        You can accept or reject advertising cookies with the banner, and
+        change your mind later with the "Cookie choices" link in the footer.
+        You can also opt out of personalised advertising at
+        <a href="https://adssettings.google.com/" rel="nofollow noopener noreferrer" target="_blank">adssettings.google.com</a>,
+        or block ads entirely with an extension. The tools work exactly the
+        same either way.
+      </p>
+      <p>
+        The full detail is in the <a href="/cookies/">Cookie Policy</a>.
+      </p>
+
+      <h2>Asking us to remove an advert</h2>
+      <p>
+        If an advert on this site is for something you consider illegal,
+        deceptive or simply inappropriate, tell us at
+        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the
+        page URL and a description of the advert, and we will block it and
+        report it to the network.
+      </p>
+
+      <h2>Who writes the content</h2>
+      <p>
+        The guides and the written notes on each tool are written by
+        {SITE.author}. Where a guide covers a specification, the specification
+        is the source of truth and the guide links to it.
+      </p>
+    </div>
+  </div>
+</Base>

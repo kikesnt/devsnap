@@ -1,0 +1,141 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="diff-checker">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Line-level and word-level highlighting</span>
+  </div>
+  <div class="tool-body">
+    <div class="grid-2">
+      <div class="field">
+        <label for="dc-left">Original</label>
+        <textarea id="dc-left" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="dc-right">Changed</label>
+        <textarea id="dc-right" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="dc-ws" style="width:auto" /> Ignore whitespace
+      </label>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="dc-case" style="width:auto" /> Ignore case
+      </label>
+      <button class="btn btn-primary" id="dc-compare" type="button">Compare</button>
+      <button class="btn btn-secondary" id="dc-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="dc-copy" type="button">Copy unified diff</button>
+    </div>
+
+    <div class="stat-row" id="dc-stats"></div>
+
+    <div class="output mt-2">
+      <div class="output-label"><span>Side by side</span></div>
+      <div class="output-box" id="dc-output" data-placeholder="The differences appear here."></div>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Unified diff</span></div>
+      <div class="output-box" id="dc-unified" data-placeholder="The unified diff appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+  import { diffLines, toUnifiedDiff } from '../../lib/diff';
+
+  const left = byId<HTMLTextAreaElement>('dc-left');
+  const right = byId<HTMLTextAreaElement>('dc-right');
+  const output = byId('dc-output');
+  const unified = byId('dc-unified');
+  const stats = byId('dc-stats');
+  const whitespaceToggle = byId<HTMLInputElement>('dc-ws');
+  const caseToggle = byId<HTMLInputElement>('dc-case');
+  const compareButton = byId<HTMLButtonElement>('dc-compare');
+  const sampleButton = byId<HTMLButtonElement>('dc-sample');
+  const copyButton = byId<HTMLButtonElement>('dc-copy');
+
+  const LEFT_SAMPLE = `server {
+  listen 8080;
+  workers 4;
+}
+database {
+  host localhost;
+  port 5432;
+  name app_db;
+}`;
+
+  const RIGHT_SAMPLE = `server {
+  listen 8080;
+  workers 8;
+  tls on;
+}
+database {
+  host localhost;
+  port 5432;
+  name app_db;
+}`;
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function compare() {
+    const options = {
+      ignoreWhitespace: whitespaceToggle?.checked ?? false,
+      ignoreCase: caseToggle?.checked ?? false,
+    };
+    const result = diffLines(left?.value ?? '', right?.value ?? '', options);
+
+    const lines = result.lines.map((line) => {
+      const marker = line.type === 'insert' ? '+' : line.type === 'delete' ? '-' : ' ';
+      const number = line.type === 'insert' ? String(line.rightNumber ?? '') : String(line.leftNumber ?? '');
+      const body = line.parts
+        ? line.parts
+            .map((part) => {
+              const safe = escapeHtml(part.text);
+              if (part.type === 'insert') return `<span style="background:#d1fadf;color:#05603a">${safe}</span>`;
+              if (part.type === 'delete') return `<span style="background:#fee4e2;color:#b42318;text-decoration:line-through">${safe}</span>`;
+              return safe;
+            })
+            .join('')
+        : escapeHtml(line.text);
+      const colour = line.type === 'insert' ? '#05603a' : line.type === 'delete' ? '#b42318' : '#5b6474';
+      return `<span style="color:${colour}">${marker} ${number.padStart(4, ' ')}  ${body}</span>`;
+    });
+
+    if (output) output.textContent = lines.join('\n') || 'The two texts are identical.';
+    if (unified) unified.textContent = toUnifiedDiff(left?.value ?? '', right?.value ?? '', options);
+    if (stats) {
+      stats.innerHTML = `<span><b>${result.added}</b> added</span><span><b>${result.removed}</b> removed</span><span><b>${result.same}</b> unchanged</span>`;
+    }
+  }
+
+  compareButton?.addEventListener('click', compare);
+  whitespaceToggle?.addEventListener('change', compare);
+  caseToggle?.addEventListener('change', compare);
+  sampleButton?.addEventListener('click', () => {
+    if (left) left.value = LEFT_SAMPLE;
+    if (right) right.value = RIGHT_SAMPLE;
+    compare();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(unified?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy unified diff');
+  });
+</script>

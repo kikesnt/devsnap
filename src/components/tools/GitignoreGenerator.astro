@@ -1,0 +1,118 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="gitignore-generator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Only what your stack actually produces</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label>Stack</label>
+      <div class="tag-row" id="gi-stacks"></div>
+    </div>
+
+    <div class="field">
+      <label>Standard groups</label>
+      <div class="tag-row" id="gi-groups"></div>
+    </div>
+
+    <div class="field">
+      <label for="gi-extras">Your own patterns (one per line)</label>
+      <textarea id="gi-extras" class="short" spellcheck="false" placeholder="*.local&#10;docs/_build"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="gi-generate" type="button">Generate</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="gi-copy" type="button">Copy .gitignore</button>
+      <button class="btn btn-ghost" id="gi-download" type="button">Download</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>.gitignore</span><span id="gi-stats"></span></div>
+      <div class="output-box" id="gi-output" style="min-height:260px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton, downloadBlob } from '../../lib/dom';
+  import { gitignoreTemplates, gitignoreGroups, buildGitignore } from '../../lib/gitignore';
+
+  const stacksContainer = byId('gi-stacks');
+  const groupsContainer = byId('gi-groups');
+  const extras = byId<HTMLTextAreaElement>('gi-extras');
+  const output = byId('gi-output');
+  const stats = byId('gi-stats');
+  const generateButton = byId<HTMLButtonElement>('gi-generate');
+  const copyButton = byId<HTMLButtonElement>('gi-copy');
+  const downloadButton = byId<HTMLButtonElement>('gi-download');
+
+  const selectedStacks = new Set<string>(['node']);
+  const selectedGroups = new Set<string>(['os', 'editors', 'secrets']);
+
+  function chip(id: string, label: string, container: HTMLElement | null, selected: Set<string>) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tag';
+    button.textContent = label;
+    button.setAttribute('aria-pressed', String(selected.has(id)));
+    if (selected.has(id)) {
+      button.style.background = 'var(--accent-soft)';
+      button.style.borderColor = 'var(--accent-border)';
+      button.style.color = 'var(--accent)';
+    }
+    button.addEventListener('click', () => {
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      button.setAttribute('aria-pressed', String(selected.has(id)));
+      button.style.background = selected.has(id) ? 'var(--accent-soft)' : '';
+      button.style.borderColor = selected.has(id) ? 'var(--accent-border)' : '';
+      button.style.color = selected.has(id) ? 'var(--accent)' : '';
+      generate();
+    });
+    container?.appendChild(button);
+  }
+
+  for (const template of gitignoreTemplates) {
+    chip(template.id, template.label, stacksContainer, selectedStacks);
+  }
+  for (const group of gitignoreGroups) {
+    chip(group.id, group.label, groupsContainer, selectedGroups);
+  }
+
+  function generate() {
+    const extraLines = (extras?.value ?? '').split('\n');
+    const text = buildGitignore(
+      [...selectedStacks],
+      [...selectedGroups],
+      extraLines
+    );
+    if (output) output.textContent = text;
+    if (stats) {
+      const count = text.split('\n').filter((line) => line && !line.startsWith('#')).length;
+      stats.textContent = `${count} pattern${count === 1 ? '' : 's'}`;
+    }
+  }
+
+  generateButton?.addEventListener('click', generate);
+  extras?.addEventListener('input', generate);
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy .gitignore');
+  });
+  downloadButton?.addEventListener('click', () => {
+    downloadBlob(new Blob([output?.textContent ?? ''], { type: 'text/plain' }), '.gitignore');
+  });
+
+  generate();
+</script>

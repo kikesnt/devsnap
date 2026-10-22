@@ -1,0 +1,146 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="base64-encoder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Standard and URL-safe alphabets, UTF-8 aware</span>
+  </div>
+  <div class="tool-body">
+    <div id="b64-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="b64-input">Input</label>
+      <textarea id="b64-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <div class="toggle-group" role="group" aria-label="Direction">
+        <button type="button" id="b64-encode" aria-pressed="true">Encode</button>
+        <button type="button" id="b64-decode" aria-pressed="false">Decode</button>
+      </div>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="b64-urlsafe" style="width:auto" />
+        URL-safe alphabet
+      </label>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="b64-nopad" style="width:auto" />
+        Strip padding
+      </label>
+      <button class="btn btn-primary" id="b64-apply" type="button">Convert</button>
+      <button class="btn btn-secondary" id="b64-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="b64-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="stat-row" id="b64-stats"></div>
+
+    <div class="output">
+      <div class="output-label"><span>Result</span></div>
+      <div class="output-box" id="b64-output" data-placeholder="The result appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('b64-input');
+  const output = byId('b64-output');
+  const status = byId('b64-status');
+  const stats = byId('b64-stats');
+  const urlSafe = byId<HTMLInputElement>('b64-urlsafe');
+  const noPad = byId<HTMLInputElement>('b64-nopad');
+  const encodeButton = byId<HTMLButtonElement>('b64-encode');
+  const decodeButton = byId<HTMLButtonElement>('b64-decode');
+  const applyButton = byId<HTMLButtonElement>('b64-apply');
+  const sampleButton = byId<HTMLButtonElement>('b64-sample');
+  const copyButton = byId<HTMLButtonElement>('b64-copy');
+
+  let direction: 'encode' | 'decode' = 'encode';
+
+  const ENCODE_SAMPLE = '{"user":"ada","role":"admin","message":"hello world"}';
+  const DECODE_SAMPLE = 'eyJ1c2VyIjoiYWRhIiwicm9sZSI6ImFkbWluIiwibWVzc2FnZSI6ImhlbGxvIHdvcmxkIn0=';
+
+  function toBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }
+
+  function fromBase64(value: string): Uint8Array {
+    const cleaned = value.replace(/\s+/g, '');
+    const padded = cleaned.padEnd(Math.ceil(cleaned.length / 4) * 4, '=');
+    const binary = atob(padded);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  }
+
+  function apply() {
+    const raw = input?.value ?? '';
+    if (!raw) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    try {
+      let result: string;
+      if (direction === 'encode') {
+        result = toBase64(new TextEncoder().encode(raw));
+        if (urlSafe?.checked) result = result.replace(/\+/g, '-').replace(/\//g, '_');
+        if (noPad?.checked) result = result.replace(/=+$/, '');
+      } else {
+        const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+        const bytes = fromBase64(normalized);
+        const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+        result = decoded;
+        if (stats) {
+          const printable = /^[\x20-\x7e\s]*$/.test(decoded);
+          stats.innerHTML = `<span><b>${bytes.length}</b> bytes decoded</span><span>${
+            printable ? 'Printable text' : 'Binary data'
+          }</span>`;
+        }
+      }
+      clearStatus(status);
+      if (output) output.textContent = result;
+      if (direction === 'encode' && stats) {
+        const ratio = (result.length / Math.max(1, raw.length)).toFixed(2);
+        stats.innerHTML = `<span><b>${raw.length}</b> characters in</span><span><b>${result.length}</b> characters out</span><span>${ratio}× size</span>`;
+      }
+    } catch (error) {
+      if (output) output.textContent = '';
+      setStatus(status, `That is not valid Base64: ${(error as Error).message}`, 'error');
+    }
+  }
+
+  function setDirection(next: 'encode' | 'decode') {
+    direction = next;
+    encodeButton?.setAttribute('aria-pressed', String(next === 'encode'));
+    decodeButton?.setAttribute('aria-pressed', String(next === 'decode'));
+    if (input) input.value = next === 'encode' ? ENCODE_SAMPLE : DECODE_SAMPLE;
+    apply();
+  }
+
+  encodeButton?.addEventListener('click', () => setDirection('encode'));
+  decodeButton?.addEventListener('click', () => setDirection('decode'));
+  urlSafe?.addEventListener('change', apply);
+  noPad?.addEventListener('change', apply);
+  applyButton?.addEventListener('click', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = direction === 'encode' ? ENCODE_SAMPLE : DECODE_SAMPLE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+</script>

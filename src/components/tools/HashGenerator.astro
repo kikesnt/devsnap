@@ -1,0 +1,112 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="hash-generator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Web Crypto API, no server involved</span>
+  </div>
+  <div class="tool-body">
+    <div id="hg-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="hg-input">Value to hash</label>
+      <textarea id="hg-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="hg-algorithm" aria-label="Algorithm">
+        <option value="SHA-256">SHA-256</option>
+        <option value="SHA-1">SHA-1</option>
+        <option value="SHA-384">SHA-384</option>
+        <option value="SHA-512">SHA-512</option>
+      </select>
+      <select id="hg-encoding" aria-label="Output encoding">
+        <option value="hex">Hexadecimal</option>
+        <option value="base64">Base64</option>
+      </select>
+      <button class="btn btn-primary" id="hg-apply" type="button">Hash</button>
+      <button class="btn btn-secondary" id="hg-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="hg-copy" type="button">Copy digest</button>
+    </div>
+
+    <div class="field">
+      <label for="hg-key">HMAC key (optional)</label>
+      <input type="text" id="hg-key" spellcheck="false" autocomplete="off" placeholder="Set a key to compute a keyed signature instead" />
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Digest</span><span id="hg-stats"></span></div>
+      <div class="output-box" id="hg-output" data-placeholder="The digest appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { hashText, hmacText, hasSubtleCrypto } from '../../lib/hash';
+
+  const input = byId<HTMLTextAreaElement>('hg-input');
+  const keyInput = byId<HTMLInputElement>('hg-key');
+  const output = byId('hg-output');
+  const status = byId('hg-status');
+  const stats = byId('hg-stats');
+  const algorithmSelect = byId<HTMLSelectElement>('hg-algorithm');
+  const encodingSelect = byId<HTMLSelectElement>('hg-encoding');
+  const applyButton = byId<HTMLButtonElement>('hg-apply');
+  const sampleButton = byId<HTMLButtonElement>('hg-sample');
+  const copyButton = byId<HTMLButtonElement>('hg-copy');
+
+  const SAMPLE = 'The quick brown fox jumps over the lazy dog';
+
+  async function apply() {
+    const raw = input?.value ?? '';
+    if (!raw) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.textContent = '';
+      return;
+    }
+    if (!hasSubtleCrypto()) {
+      setStatus(status, 'The Web Crypto API is unavailable. Open the page over https or on localhost.', 'error');
+      return;
+    }
+
+    const algorithm = (algorithmSelect?.value ?? 'SHA-256') as 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
+    const encoding = (encodingSelect?.value ?? 'hex') as 'hex' | 'base64';
+    const key = keyInput?.value ?? '';
+
+    try {
+      const digest = key
+        ? await hmacText(raw, key, algorithm, encoding)
+        : await hashText(raw, algorithm, encoding);
+      clearStatus(status);
+      if (output) output.textContent = digest;
+      if (stats) {
+        stats.innerHTML = `<span>${algorithm}</span><span>${key ? 'HMAC' : 'Digest'}</span><span><b>${digest.length}</b> characters</span>`;
+      }
+    } catch (error) {
+      if (output) output.textContent = '';
+      setStatus(status, `The digest could not be computed: ${(error as Error).message}`, 'error');
+    }
+  }
+
+  applyButton?.addEventListener('click', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy digest');
+  });
+</script>

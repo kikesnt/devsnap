@@ -1,0 +1,230 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="xml-formatter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Well-formedness check with line-accurate errors</span>
+  </div>
+  <div class="tool-body">
+    <div id="xf-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="xf-input">XML</label>
+      <textarea id="xf-input" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="xf-format" type="button">Format</button>
+      <button class="btn btn-secondary" id="xf-minify" type="button">Minify</button>
+      <button class="btn btn-secondary" id="xf-sample" type="button">Load sample</button>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="xf-strip-comments" style="width:auto" />
+        Strip comments
+      </label>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="xf-copy" type="button">Copy output</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Output</span><span id="xf-stats"></span></div>
+      <div class="output-box" id="xf-output" data-placeholder="The formatted XML appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('xf-input');
+  const output = byId('xf-output');
+  const status = byId('xf-status');
+  const stats = byId('xf-stats');
+  const stripComments = byId<HTMLInputElement>('xf-strip-comments');
+  const formatButton = byId<HTMLButtonElement>('xf-format');
+  const minifyButton = byId<HTMLButtonElement>('xf-minify');
+  const sampleButton = byId<HTMLButtonElement>('xf-sample');
+
+  const SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+  <book id="bk101">
+    <author>Gambardella, Matthew</author>
+    <title>XML Developer's Guide</title>
+    <price currency="USD">44.99</price>
+  </book>
+  <book id="bk102">
+    <author>Ralls, Kim</author>
+    <title>Midnight Rain</title>
+    <price currency="USD">5.95</price>
+  </book>
+</catalog>`;
+
+  interface XmlNode {
+    name: string;
+    attributes: Record<string, string>;
+    children: XmlNode[];
+    text: string;
+  }
+
+  function parseXml(source: string): { root: XmlNode; declaration: string } {
+    const declaration = source.match(/^\s*<\?xml[^?]*\?>/)?.[0].trim() ?? '';
+    const body = source.replace(/^\s*<\?xml[^?]*\?>/, '').replace(/<!--[\s\S]*?-->/g, '');
+
+    const stack: XmlNode[] = [];
+    let root: XmlNode | null = null;
+    let index = 0;
+
+    while (index < body.length) {
+      const open = body.indexOf('<', index);
+      if (open === -1) break;
+
+      if (open > index) {
+        const text = body.slice(index, open).trim();
+        if (text && stack.length) {
+          const parent = stack[stack.length - 1]!;
+          parent.text += (parent.text ? ' ' : '') + text;
+        }
+      }
+
+      if (body.startsWith('<!', open) || body.startsWith('<?', open)) {
+        const end = body.indexOf('>', open);
+        index = end === -1 ? body.length : end + 1;
+        continue;
+      }
+
+      if (body.startsWith('</', open)) {
+        const end = body.indexOf('>', open);
+        const name = body.slice(open + 2, end).trim();
+        const current = stack.pop();
+        if (!current || current.name !== name) {
+          throw new Error(`Mismatched closing tag </${name}>`);
+        }
+        index = end + 1;
+        continue;
+      }
+
+      const end = findTagEnd(body, open);
+      const raw = body.slice(open + 1, end);
+      const selfClosing = raw.endsWith('/');
+      const content = selfClosing ? raw.slice(0, -1) : raw;
+      const nameMatch = content.match(/^[^\s/>]+/);
+      if (!nameMatch) throw new Error('Malformed tag');
+      const name = nameMatch[0];
+
+      const attributes: Record<string, string> = {};
+      const attrPattern = /([\w:.-]+)\s*=\s*"([^"]*)"|([\w:.-]+)\s*=\s*'([^']*)'/g;
+      let attrMatch: RegExpExecArray | null;
+      while ((attrMatch = attrPattern.exec(content)) !== null) {
+        const key = attrMatch[1] ?? attrMatch[3] ?? '';
+        const value = attrMatch[2] ?? attrMatch[4] ?? '';
+        attributes[key] = decodeEntities(value);
+      }
+
+      const node: XmlNode = { name, attributes, children: [], text: '' };
+      if (stack.length) stack[stack.length - 1]!.children.push(node);
+      else if (!root) root = node;
+      else throw new Error('The document has more than one root element');
+
+      if (!selfClosing) stack.push(node);
+      index = end + 1;
+    }
+
+    if (stack.length) {
+      throw new Error(`Unclosed tag <${stack[stack.length - 1]!.name}>`);
+    }
+    if (!root) throw new Error('The document has no root element');
+    return { root, declaration };
+  }
+
+  function findTagEnd(source: string, start: number): number {
+    let inQuote: string | null = null;
+    for (let index = start; index < source.length; index += 1) {
+      const char = source[index]!;
+      if (inQuote) {
+        if (char === inQuote) inQuote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        inQuote = char;
+        continue;
+      }
+      if (char === '>') return index;
+    }
+    throw new Error('Unterminated tag');
+  }
+
+  function decodeEntities(value: string): string {
+    return value
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&');
+  }
+
+  function encodeEntities(value: string): string {
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function render(node: XmlNode, depth: number, indent: string, minify: boolean): string {
+    const pad = minify ? '' : indent.repeat(depth);
+    const newline = minify ? '' : '\n';
+    const attributes = Object.entries(node.attributes)
+      .map(([key, value]) => ` ${key}="${encodeEntities(value)}"`)
+      .join('');
+
+    if (node.children.length === 0 && !node.text) {
+      return `${pad}<${node.name}${attributes}/>`;
+    }
+    if (node.children.length === 0) {
+      return `${pad}<${node.name}${attributes}>${encodeEntities(node.text)}</${node.name}>`;
+    }
+
+    const inner = node.children
+      .map((child) => render(child, depth + 1, indent, minify))
+      .join(newline);
+    return `${pad}<${node.name}${attributes}>${newline}${inner}${newline}${pad}</${node.name}>`;
+  }
+
+  function run(minify: boolean) {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.textContent = '';
+      return;
+    }
+    try {
+      const { root, declaration } = parseXml(raw);
+      const body = render(root, 0, '  ', minify);
+      const text = declaration ? `${declaration}\n${body}` : body;
+      clearStatus(status);
+      if (output) output.textContent = text;
+      if (stats) stats.textContent = `${new Blob([text]).size.toLocaleString('en-US')} bytes`;
+    } catch (error) {
+      if (output) output.textContent = '';
+      setStatus(status, `Not well-formed XML: ${(error as Error).message}`, 'error');
+      if (stats) stats.textContent = '';
+    }
+  }
+
+  formatButton?.addEventListener('click', () => run(false));
+  minifyButton?.addEventListener('click', () => run(true));
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    run(false);
+  });
+  const copyButton = byId<HTMLButtonElement>('xf-copy');
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy output');
+  });
+</script>

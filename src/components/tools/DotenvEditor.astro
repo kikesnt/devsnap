@@ -1,0 +1,238 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="dotenv-editor">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Secret values are masked by default</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="de-input">.env contents</label>
+      <textarea id="de-input" spellcheck="false" placeholder="DATABASE_URL=postgres://user:pass@localhost:5432/db"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="de-mask" style="width:auto" checked /> Mask secrets
+      </label>
+      <button class="btn btn-primary" id="de-parse" type="button">Parse</button>
+      <button class="btn btn-secondary" id="de-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="de-copy" type="button">Copy export block</button>
+    </div>
+
+    <div class="stat-row" id="de-stats"></div>
+
+    <div class="table-wrap mt-2">
+      <table>
+        <thead><tr><th style="width:220px">Variable</th><th>Value</th><th style="width:110px">Flag</th></tr></thead>
+        <tbody id="de-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Shell export block</span></div>
+      <div class="output-box" id="de-export" data-placeholder="An export block appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('de-input');
+  const rows = byId('de-rows');
+  const exportBox = byId('de-export');
+  const stats = byId('de-stats');
+  const maskToggle = byId<HTMLInputElement>('de-mask');
+  const parseButton = byId<HTMLButtonElement>('de-parse');
+  const sampleButton = byId<HTMLButtonElement>('de-sample');
+  const copyButton = byId<HTMLButtonElement>('de-copy');
+
+  const SECRET_WORDS = ['key', 'secret', 'token', 'password', 'passwd', 'pwd', 'credential', 'auth', 'private'];
+
+  const SAMPLE = `# Application configuration
+NODE_ENV=production
+PORT=8080
+DATABASE_URL=postgres://app:s3cr3t@db.internal:5432/production
+REDIS_HOST=redis.internal
+SESSION_SECRET=5f4dcc3b5aa765d61d8327deb882cf99
+API_TOKEN=sk_live_51H8xQ2eZvKYlo2C
+LOG_LEVEL=info
+FEATURE_FLAGS=checkout-v2,new-nav`;
+
+  interface Entry {
+    key: string;
+    value: string;
+    secret: boolean;
+    problem?: string;
+  }
+
+  function parseEnv(source: string): { entries: Entry[]; problems: string[] } {
+    const entries: Entry[] = [];
+    const problems: string[] = [];
+    const seen = new Set<string>();
+
+    const lines = source.replace(/\r\n?/g, '\n').split('\n');
+    let index = 0;
+
+    while (index < lines.length) {
+      const line = lines[index]!;
+      index += 1;
+      const trimmed = line.trim();
+      if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+      if (trimmed.startsWith('export ')) {
+        const rest = trimmed.slice(7).trim();
+        const parsed = parseAssignment(rest, entries, seen, problems);
+        if (parsed) continue;
+        continue;
+      }
+
+      const parsed = parseAssignment(trimmed, entries, seen, problems);
+      if (!parsed) {
+        problems.push(`Line ${index}: "${trimmed.slice(0, 40)}" is not a KEY=value assignment`);
+      }
+    }
+
+    return { entries, problems };
+  }
+
+  function parseAssignment(
+    line: string,
+    entries: Entry[],
+    seen: Set<string>,
+    problems: string[]
+  ): boolean {
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) return false;
+    const key = match[1]!;
+    let value = match[2] ?? '';
+    let problem: string | undefined;
+
+    if (value.startsWith('"""') || value.startsWith("'''")) {
+      const quote = value.slice(0, 3);
+      let body = value.slice(3);
+      let cursor = indexOfFrom(body, quote, 0);
+      // Multi-line values continue until the closing triple quote.
+      const collected = [body];
+      while (cursor === -1 && index < lines.length) {
+        collected.push(lines[index]!);
+        index += 1;
+        body = collected.join('\n');
+        cursor = indexOfFrom(body, quote, 0);
+      }
+      value = cursor === -1 ? body : body.slice(0, cursor);
+    } else if (value.startsWith('"') || value.startsWith("'")) {
+      const quote = value[0]!;
+      const closing = value.indexOf(quote, 1);
+      if (closing === -1) {
+        problem = 'The quoted value is never closed';
+        value = value.slice(1);
+      } else {
+        const trailing = value.slice(closing + 1).trim();
+        if (trailing && !trailing.startsWith('#')) problem = 'There is text after the closing quote';
+        value = value.slice(1, closing);
+      }
+    } else {
+      const hash = value.indexOf(' #');
+      if (hash !== -1) value = value.slice(0, hash).trim();
+      else {
+        const comment = value.indexOf('#');
+        if (comment === 0) value = '';
+      }
+    }
+
+    if (seen.has(key)) {
+      problem = problem ?? 'Duplicate key — the last definition wins';
+    }
+    seen.add(key);
+
+    if (value === '') problem = problem ?? 'Empty value';
+
+    const secret = SECRET_WORDS.some((word) => key.toLowerCase().includes(word));
+    entries.push({ key, value, secret, problem });
+    return true;
+  }
+
+  function indexOfFrom(value: string, search: string, from: number): number {
+    return value.indexOf(search, from);
+  }
+
+  let lines: string[] = [];
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function mask(value: string): string {
+    if (value.length <= 4) return '••••';
+    return `${value.slice(0, 2)}${'•'.repeat(Math.min(16, value.length - 4))}${value.slice(-2)}`;
+  }
+
+  function parse() {
+    const source = input?.value ?? '';
+    lines = source.replace(/\r\n?/g, '\n').split('\n');
+    if (!source.trim()) {
+      if (rows) rows.innerHTML = '';
+      if (exportBox) exportBox.textContent = '';
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    const { entries, problems } = parseEnv(source);
+    const shouldMask = maskToggle?.checked ?? true;
+
+    if (rows) {
+      rows.innerHTML = entries
+        .map(
+          (entry) => `<tr>
+            <td><code>${escapeHtml(entry.key)}</code></td>
+            <td><code>${escapeHtml(entry.secret && shouldMask ? mask(entry.value) : entry.value)}</code></td>
+            <td>${
+              entry.problem
+                ? `<span class="chip chip-bad">${escapeHtml(entry.problem)}</span>`
+                : entry.secret
+                  ? '<span class="chip chip-ok">secret</span>'
+                  : '<span class="chip">value</span>'
+            }</td>
+          </tr>`
+        )
+        .join('');
+    }
+
+    const exportBlock = entries
+      .map((entry) => `export ${entry.key}=${/[\s"'#]/.test(entry.value) ? `"${entry.value.replace(/"/g, '\\"')}"` : entry.value}`)
+      .join('\n');
+    if (exportBox) exportBox.textContent = exportBlock;
+
+    if (stats) {
+      const flagged = entries.filter((entry) => entry.problem).length;
+      stats.innerHTML = `<span><b>${entries.length}</b> variables</span><span><b>${entries.filter((entry) => entry.secret).length}</b> secrets</span>${
+        flagged ? `<span class="chip chip-bad">${flagged} flagged</span>` : '<span class="chip chip-ok">no problems</span>'
+      }<span class="chip">${problems.length} unparsed line${problems.length === 1 ? '' : 's'}</span>`;
+    }
+  }
+
+  parseButton?.addEventListener('click', parse);
+  maskToggle?.addEventListener('change', parse);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    parse();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(exportBox?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy export block');
+  });
+</script>

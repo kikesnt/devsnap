@@ -1,0 +1,174 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="utm-builder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Consistent lowercase parameters, validated</span>
+  </div>
+  <div class="tool-body">
+    <div id="ub-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="ub-url">Destination URL</label>
+      <input type="text" id="ub-url" spellcheck="false" placeholder="https://example.com/landing" />
+    </div>
+
+    <div class="grid-3 mt-2">
+      <div class="field">
+        <label for="ub-source">utm_source</label>
+        <input type="text" id="ub-source" spellcheck="false" placeholder="newsletter" />
+      </div>
+      <div class="field">
+        <label for="ub-medium">utm_medium</label>
+        <input type="text" id="ub-medium" spellcheck="false" placeholder="email" />
+      </div>
+      <div class="field">
+        <label for="ub-campaign">utm_campaign</label>
+        <input type="text" id="ub-campaign" spellcheck="false" placeholder="spring_launch" />
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="field">
+        <label for="ub-content">utm_content</label>
+        <input type="text" id="ub-content" spellcheck="false" placeholder="hero_button" />
+      </div>
+      <div class="field">
+        <label for="ub-term">utm_term</label>
+        <input type="text" id="ub-term" spellcheck="false" placeholder="paid keywords only" />
+      </div>
+      <div class="field">
+        <label for="ub-id">utm_id</label>
+        <input type="text" id="ub-id" spellcheck="false" placeholder="optional" />
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <select id="ub-preset" aria-label="Channel preset">
+        <option value="">Channel presets…</option>
+        <option value="email">Email newsletter</option>
+        <option value="social">Social post</option>
+        <option value="paid">Paid search</option>
+        <option value="qr">QR code</option>
+        <option value="print">Print / poster</option>
+      </select>
+      <button class="btn btn-primary" id="ub-build" type="button">Build URL</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="ub-copy" type="button">Copy URL</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Tagged URL</span></div>
+      <div class="output-box" id="ub-output" data-placeholder="The tagged URL appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const urlInput = byId<HTMLInputElement>('ub-url');
+  const output = byId('ub-output');
+  const status = byId('ub-status');
+  const presetSelect = byId<HTMLSelectElement>('ub-preset');
+  const buildButton = byId<HTMLButtonElement>('ub-build');
+  const copyButton = byId<HTMLButtonElement>('ub-copy');
+
+  const fields = {
+    source: byId<HTMLInputElement>('ub-source'),
+    medium: byId<HTMLInputElement>('ub-medium'),
+    campaign: byId<HTMLInputElement>('ub-campaign'),
+    content: byId<HTMLInputElement>('ub-content'),
+    term: byId<HTMLInputElement>('ub-term'),
+    id: byId<HTMLInputElement>('ub-id'),
+  };
+
+  const PRESETS: Record<string, { source: string; medium: string; campaign: string; content: string }> = {
+    email: { source: 'newsletter', medium: 'email', campaign: 'newsletter', content: 'link' },
+    social: { source: 'social', medium: 'social', campaign: 'social_post', content: 'post' },
+    paid: { source: 'google', medium: 'cpc', campaign: 'brand_terms', content: 'ad' },
+    qr: { source: 'qr_code', medium: 'qr', campaign: 'print_material', content: 'poster' },
+    print: { source: 'print', medium: 'print', campaign: 'print_material', content: 'flyer' },
+  };
+
+  function slugify(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_\-.]/g, '')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+  }
+
+  function build() {
+    const rawUrl = (urlInput?.value ?? '').trim();
+    if (!rawUrl) {
+      setStatus(status, 'Enter the URL the campaign should point at.', 'error');
+      if (output) output.textContent = '';
+      return;
+    }
+
+    let url: URL;
+    try {
+      url = new URL(rawUrl.includes('://') ? rawUrl : `https://${rawUrl}`);
+    } catch {
+      setStatus(status, 'That is not a valid URL.', 'error');
+      if (output) output.textContent = '';
+      return;
+    }
+
+    const warnings: string[] = [];
+    const parameters: [string, string][] = [];
+
+    for (const [key, element] of Object.entries(fields)) {
+      const raw = (element?.value ?? '').trim();
+      if (!raw) continue;
+      if (raw !== raw.toLowerCase()) {
+        warnings.push(`"${key}" contains uppercase characters. Lowercase keeps the parameter consistent with the rest of the campaign.`);
+      }
+      if (/\s/.test(raw)) {
+        warnings.push(`"${key}" contains a space. Use underscores or hyphens instead.`);
+      }
+      parameters.push([`utm_${key}`, slugify(raw)]);
+    }
+
+    if (parameters.length === 0) {
+      setStatus(status, 'Add at least one campaign parameter before building the URL.', 'error');
+      if (output) output.textContent = '';
+      return;
+    }
+
+    for (const [name, value] of parameters) url.searchParams.set(name, value);
+
+    clearStatus(status);
+    if (output) output.textContent = url.toString();
+    if (warnings.length > 0) setStatus(status, warnings.join(' '), 'info');
+  }
+
+  presetSelect?.addEventListener('change', () => {
+    const key = presetSelect.value;
+    const preset = PRESETS[key];
+    if (!preset) return;
+    if (fields.source) fields.source.value = preset.source;
+    if (fields.medium) fields.medium.value = preset.medium;
+    if (fields.campaign) fields.campaign.value = preset.campaign;
+    if (fields.content) fields.content.value = preset.content;
+    build();
+  });
+
+  buildButton?.addEventListener('click', build);
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy URL');
+  });
+</script>

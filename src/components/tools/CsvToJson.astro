@@ -1,0 +1,124 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="csv-to-json">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Delimiter auto-detected, quoting handled</span>
+  </div>
+  <div class="tool-body">
+    <div id="ctj-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="ctj-input">CSV</label>
+      <textarea id="ctj-input" class="short" spellcheck="false" placeholder="id,name,email&#10;1,Ada,ada@example.com"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="ctj-delimiter" aria-label="Delimiter">
+        <option value="auto">Auto-detect</option>
+        <option value=",">Comma</option>
+        <option value=";">Semicolon</option>
+        <option value="&#9;">Tab</option>
+        <option value="|">Pipe</option>
+      </select>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="ctj-coerce" style="width:auto" />
+        Infer numbers and booleans
+      </label>
+      <button class="btn btn-primary" id="ctj-convert" type="button">Convert</button>
+      <button class="btn btn-secondary" id="ctj-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="ctj-copy" type="button">Copy JSON</button>
+    </div>
+
+    <div class="stat-row" id="ctj-stats"></div>
+
+    <div class="output">
+      <div class="output-label"><span>JSON</span></div>
+      <div class="output-box" id="ctj-output" data-placeholder="The converted JSON appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { parseCsv, coerceValue } from '../../lib/csv';
+
+  const input = byId<HTMLTextAreaElement>('ctj-input');
+  const output = byId('ctj-output');
+  const status = byId('ctj-status');
+  const stats = byId('ctj-stats');
+  const delimiterSelect = byId<HTMLSelectElement>('ctj-delimiter');
+  const coerceToggle = byId<HTMLInputElement>('ctj-coerce');
+  const convertButton = byId<HTMLButtonElement>('ctj-convert');
+  const sampleButton = byId<HTMLButtonElement>('ctj-sample');
+  const copyButton = byId<HTMLButtonElement>('ctj-copy');
+
+  const SAMPLE = `id,name,department,salary,active,started
+1,Ada Lovelace,Engineering,145000,true,2019-04-01
+2,Grace Hopper,Engineering,162000,true,2015-11-15
+3,Alan Turing,Research,158000,false,2017-06-20
+4,Katherine Johnson,Research,151000,true,2018-01-09`;
+
+  function convert() {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+
+    const selected = delimiterSelect?.value ?? 'auto';
+    const delimiter = selected === 'auto' ? undefined : selected === '\\t' ? '\t' : selected;
+    const parsed = parseCsv(raw, delimiter);
+    const coerce = coerceToggle?.checked ?? false;
+
+    if (parsed.headers.length === 0) {
+      setStatus(status, 'The CSV has no header row.', 'error');
+      return;
+    }
+
+    const records = parsed.rows
+      .filter((row) => row.length > 1 || (row.length === 1 && row[0] !== ''))
+      .map((row) => {
+        const record: Record<string, unknown> = {};
+        parsed.headers.forEach((header, index) => {
+          record[header] = coerceValue(row[index] ?? '', coerce);
+        });
+        return record;
+      });
+
+    clearStatus(status);
+    if (output) output.textContent = JSON.stringify(records, null, 2);
+
+    const bits: string[] = [
+      `<span>Delimiter <b>${parsed.delimiter === '\t' ? 'tab' : parsed.delimiter}</b></span>`,
+      `<span><b>${records.length}</b> rows</span>`,
+      `<span><b>${parsed.headers.length}</b> columns</span>`,
+    ];
+    if (parsed.ragged.length) {
+      bits.push(`<span class="chip chip-bad">${parsed.ragged.length} ragged row${parsed.ragged.length === 1 ? '' : 's'}</span>`);
+    }
+    if (stats) stats.innerHTML = bits.join('');
+  }
+
+  convertButton?.addEventListener('click', convert);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    convert();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy JSON');
+  });
+</script>

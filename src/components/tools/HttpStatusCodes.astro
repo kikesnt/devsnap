@@ -1,0 +1,112 @@
+---
+import type { ToolDef } from '../../data/types';
+import { statusCodes, statusCategories } from '../../data/status-codes';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="http-status-codes">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>{statusCodes.length} codes, searchable</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="hsc-search">Search</label>
+      <input type="search" id="hsc-search" placeholder="retry, cache, jwt, validation…" autocomplete="off" />
+    </div>
+
+    <div class="tool-actions" id="hsc-filters">
+      <div class="toggle-group" role="group" aria-label="Filter by class">
+        <button type="button" data-class="all" aria-pressed="true">All</button>
+        {
+          statusCategories.map((category) => (
+            <button type="button" data-class={category} aria-pressed="false">
+              {category === 'client error'
+                ? '4xx'
+                : category === 'server error'
+                  ? '5xx'
+                  : `${category.charAt(0).toUpperCase()}${category.slice(1)}`}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="stat-row" id="hsc-stats"></div>
+
+    <div class="table-wrap mt-2" style="max-height:560px;overflow:auto">
+      <table id="hsc-table">
+        <thead>
+          <tr>
+            <th style="width:70px">Code</th>
+            <th style="width:200px">Name</th>
+            <th>Meaning and when to use it</th>
+          </tr>
+        </thead>
+        <tbody id="hsc-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId } from '../../lib/dom';
+  import { statusCodes } from '../../data/status-codes';
+
+  const search = byId<HTMLInputElement>('hsc-search');
+  const body = byId('hsc-body');
+  const stats = byId('hsc-stats');
+  const filters = byId('hsc-filters');
+
+  let activeClass = 'all';
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function render() {
+    const query = (search?.value ?? '').trim().toLowerCase();
+    const matches = statusCodes.filter((entry) => {
+      if (activeClass !== 'all' && entry.category !== activeClass) return false;
+      if (!query) return true;
+      const haystack = `${entry.code} ${entry.name} ${entry.summary} ${entry.detail}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    if (body) {
+      body.innerHTML = matches
+        .map(
+          (entry) => `<tr>
+            <td><b>${entry.code}</b></td>
+            <td>${escapeHtml(entry.name)}</td>
+            <td><b>${escapeHtml(entry.summary)}</b><br /><span class="muted small">${escapeHtml(entry.detail)}</span></td>
+          </tr>`
+        )
+        .join('');
+    }
+    if (stats) {
+      stats.innerHTML = `<span><b>${matches.length}</b> of ${statusCodes.length} codes</span>`;
+    }
+  }
+
+  search?.addEventListener('input', render);
+  filters?.addEventListener('click', (event) => {
+    const target = (event.target as HTMLElement).closest('button');
+    if (!target) return;
+    activeClass = target.getAttribute('data-class') ?? 'all';
+    filters.querySelectorAll('button').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button === target));
+    });
+    render();
+  });
+
+  render();
+</script>

@@ -1,0 +1,95 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="checksum-calculator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>CRC-32, Adler-32 and Fletcher-16 over UTF-8 bytes</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="cc-input">Data to checksum</label>
+      <textarea id="cc-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="cc-algorithm" aria-label="Algorithm">
+        <option value="crc32">CRC-32 (IEEE, used by ZIP and PNG)</option>
+        <option value="adler32">Adler-32 (zlib)</option>
+        <option value="fletcher16">Fletcher-16</option>
+      </select>
+      <button class="btn btn-primary" id="cc-apply" type="button">Calculate</button>
+      <button class="btn btn-secondary" id="cc-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="cc-copy" type="button">Copy checksum</button>
+    </div>
+
+    <div class="grid-2 mt-2">
+      <div class="field">
+        <label>Hexadecimal</label>
+        <div class="output-box" id="cc-hex" data-placeholder="The checksum appears here."></div>
+      </div>
+      <div class="field">
+        <label>Decimal</label>
+        <div class="output-box" id="cc-dec" data-placeholder="The checksum appears here."></div>
+      </div>
+    </div>
+
+    <div class="stat-row" id="cc-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+  import { checksum, toHexNumber, bytesOf } from '../../lib/hash';
+
+  const input = byId<HTMLTextAreaElement>('cc-input');
+  const hexBox = byId('cc-hex');
+  const decBox = byId('cc-dec');
+  const stats = byId('cc-stats');
+  const algorithmSelect = byId<HTMLSelectElement>('cc-algorithm');
+  const applyButton = byId<HTMLButtonElement>('cc-apply');
+  const sampleButton = byId<HTMLButtonElement>('cc-sample');
+  const copyButton = byId<HTMLButtonElement>('cc-copy');
+
+  const SAMPLE = 'DevSnap checksum sample payload';
+
+  function apply() {
+    const raw = input?.value ?? '';
+    if (!raw) {
+      if (hexBox) hexBox.textContent = '';
+      if (decBox) decBox.textContent = '';
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    const algorithm = (algorithmSelect?.value ?? 'crc32') as 'crc32' | 'adler32' | 'fletcher16';
+    const bytes = bytesOf(raw);
+    const value = checksum(bytes, algorithm);
+    const width = algorithm === 'fletcher16' ? 4 : 8;
+
+    if (hexBox) hexBox.textContent = toHexNumber(value, width);
+    if (decBox) decBox.textContent = String(value);
+    if (stats) {
+      stats.innerHTML = `<span><b>${bytes.length}</b> bytes</span><span>${algorithm}</span><span>UTF-8 encoded</span>`;
+    }
+  }
+
+  applyButton?.addEventListener('click', apply);
+  algorithmSelect?.addEventListener('change', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(hexBox?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy checksum');
+  });
+</script>

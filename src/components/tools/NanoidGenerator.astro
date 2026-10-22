@@ -1,0 +1,112 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="nanoid-generator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Generated with crypto.getRandomValues</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-actions">
+      <label for="ng-length" class="mb-0">Length</label>
+      <input type="number" id="ng-length" value="21" min="1" max="128" style="width:88px" />
+      <label for="ng-alphabet" class="mb-0">Alphabet</label>
+      <select id="ng-alphabet" style="max-width:220px">
+        <option value="default">A-Za-z0-9_- (default)</option>
+        <option value="alnum">A-Za-z0-9</option>
+        <option value="digits">0123456789</option>
+        <option value="hex">0123456789abcdef</option>
+        <option value="lower">abcdefghijklmnopqrstuvwxyz</option>
+        <option value="no-confusable">Without 0, O, 1, l, I</option>
+      </select>
+      <label for="ng-count" class="mb-0">How many</label>
+      <select id="ng-count">
+        <option value="1">1</option>
+        <option value="10">10</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="1000">1000</option>
+      </select>
+      <button class="btn btn-primary" id="ng-generate" type="button">Generate</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="ng-copy" type="button">Copy all</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Identifiers</span><span id="ng-stats"></span></div>
+      <div class="output-box" id="ng-output" data-placeholder="The identifiers appear here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+
+  const output = byId('ng-output');
+  const stats = byId('ng-stats');
+  const lengthInput = byId<HTMLInputElement>('ng-length');
+  const alphabetSelect = byId<HTMLSelectElement>('ng-alphabet');
+  const countSelect = byId<HTMLSelectElement>('ng-count');
+  const generateButton = byId<HTMLButtonElement>('ng-generate');
+  const copyButton = byId<HTMLButtonElement>('ng-copy');
+
+  const ALPHABETS: Record<string, string> = {
+    default: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-',
+    alnum: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+    digits: '0123456789',
+    hex: '0123456789abcdef',
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    'no-confusable': 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789',
+  };
+
+  function randomIndex(max: number): number {
+    // Rejection sampling keeps the distribution uniform for any alphabet size.
+    const limit = Math.floor(256 / max) * max;
+    const buffer = new Uint8Array(1);
+    let value = 0;
+    do {
+      crypto.getRandomValues(buffer);
+      value = buffer[0]!;
+    } while (value >= limit);
+    return value % max;
+  }
+
+  function generate() {
+    const length = Math.max(1, Math.min(128, Number(lengthInput?.value ?? 21)));
+    const alphabet = ALPHABETS[alphabetSelect?.value ?? 'default'] ?? ALPHABETS.default!;
+    const count = Math.max(1, Math.min(1000, Number(countSelect?.value ?? 1)));
+
+    const values: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      let id = '';
+      for (let position = 0; position < length; position += 1) {
+        id += alphabet[randomIndex(alphabet.length)]!;
+      }
+      values.push(id);
+    }
+
+    if (output) output.textContent = values.join('\n');
+    if (stats) {
+      const entropy = Math.round(length * Math.log2(alphabet.length));
+      stats.innerHTML = `<span><b>${values.length}</b> identifier${values.length === 1 ? '' : 's'}</span><span><b>${length}</b> characters</span><span><b>${entropy}</b> bits of entropy</span>`;
+    }
+  }
+
+  generateButton?.addEventListener('click', generate);
+  lengthInput?.addEventListener('change', generate);
+  alphabetSelect?.addEventListener('change', generate);
+  countSelect?.addEventListener('change', generate);
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy all');
+  });
+  generate();
+</script>

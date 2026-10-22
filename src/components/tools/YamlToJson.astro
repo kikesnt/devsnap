@@ -1,0 +1,123 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="yaml-to-json">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>YAML 1.2 core schema, anchors and aliases resolved</span>
+  </div>
+  <div class="tool-body">
+    <div id="ytj-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="ytj-input">YAML</label>
+        <textarea id="ytj-input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="ytj-output">JSON</label>
+        <textarea id="ytj-output" class="tall" spellcheck="false" readonly placeholder="The converted JSON appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="ytj-convert" type="button">Convert</button>
+      <button class="btn btn-secondary" id="ytj-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="ytj-copy" type="button">Copy JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { parseAllDocuments } from 'yaml';
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('ytj-input');
+  const output = byId<HTMLTextAreaElement>('ytj-output');
+  const status = byId('ytj-status');
+  const convertButton = byId<HTMLButtonElement>('ytj-convert');
+  const sampleButton = byId<HTMLButtonElement>('ytj-sample');
+  const copyButton = byId<HTMLButtonElement>('ytj-copy');
+
+  const SAMPLE = `# deployment configuration
+name: devsnap
+replicas: 3
+enabled: true
+image: registry.devsnap.cc/app:1.4.2
+ports:
+  - 8080
+  - 8443
+limits:
+  cpu: "500m"
+  memory: 512Mi
+routes:
+  - path: /api
+    method: GET
+  - path: /health
+    method: GET
+anchors:
+  base: &base
+    retries: 3
+    timeout: 30
+  production:
+    <<: *base
+    timeout: 60
+`;
+
+  function convert() {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.value = '';
+      clearStatus(status);
+      return;
+    }
+    try {
+      const documents = parseAllDocuments(raw, { prettyErrors: true });
+      const errored = documents.find((document) => document.errors.length > 0);
+      if (errored?.errors.length) {
+        const first = errored.errors[0]!;
+        const line = first.linePos?.[0]?.line;
+        const column = first.linePos?.[0]?.col;
+        setStatus(
+          status,
+          `YAML error${line ? ` at line ${line}, column ${column}` : ''}: ${first.message}`,
+          'error'
+        );
+        if (output) output.value = '';
+        return;
+      }
+
+      const values = documents
+        .map((document) => document.toJS({ maxAliasCount: 100 }))
+        .filter((value) => value !== null && value !== undefined);
+
+      clearStatus(status);
+      if (output) {
+        output.value =
+          values.length === 1 ? JSON.stringify(values[0], null, 2) : JSON.stringify(values, null, 2);
+      }
+    } catch (error) {
+      setStatus(status, `Could not parse the YAML: ${(error as Error).message}`, 'error');
+      if (output) output.value = '';
+    }
+  }
+
+  convertButton?.addEventListener('click', convert);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    convert();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy JSON');
+  });
+</script>

@@ -1,0 +1,94 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+---
+
+<Base
+  title="Disclaimer — Accuracy, Security and Advice Limits"
+  description="Accuracy, security and professional-advice disclaimers for the DevSnap developer tools, and who is responsible for them."
+  schemas={{
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Disclaimer — Accuracy, Security and Advice Limits',
+    url: `${SITE.domain}/disclaimer/`,
+    author: { '@type': 'Person', name: SITE.author },
+    publisher: { '@type': 'Organization', name: SITE.publisher },
+  }}
+  canonicalPath="/disclaimer/"
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Disclaimer</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Disclaimer</h1>
+      <p class="lede">
+        A short, honest statement of what these tools are good for, and what they are
+        not good for.
+      </p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>Accuracy</h2>
+      <p>
+        The tools are implemented against published specifications and tested against
+        known values, but they are not infallible. A formatting tool can produce output
+        that differs from a particular implementation, a regular expression can behave
+        differently across languages, and a date calculation can differ around a
+        daylight saving boundary.
+      </p>
+      <p>
+        Always verify output that matters before relying on it, particularly in a
+        production system, a security context or a financial one.
+      </p>
+
+      <h2>Security</h2>
+      <p>
+        These tools are provided as they are. The privacy and security properties
+        described on this site — that input is processed locally and never
+        transmitted — describe the architecture of the site as published. If you
+        deploy a copy of these tools yourself, that is your deployment and your
+        responsibility.
+      </p>
+      <p>
+        Nothing on this site is a substitute for a proper security review, a
+        professional penetration test, or the documentation of the system you are
+        working on.
+      </p>
+
+      <h2>Not professional advice</h2>
+      <p>
+        The guides and the notes attached to each tool are general technical
+        information. They are not legal, financial, medical or regulatory advice, and
+        they are not a substitute for the specific guidance of a qualified
+        professional in your jurisdiction.
+      </p>
+      <p>
+        In particular, the tax, payroll and financial examples used to illustrate a
+        tool are illustrative only. Do not use them to make a financial or
+        compliance decision.
+      </p>
+
+      <h2>Trademarks</h2>
+      <p>
+        Product names, logos and trademarks referenced in the documentation belong to
+        their respective owners and are used for identification only. Mentioning a
+        product does not imply endorsement.
+      </p>
+
+      <h2>External links</h2>
+      <p>
+        Links to other sites are provided for convenience. We are not responsible for
+        the content or practices of third-party sites.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        If something here is wrong, <a href="/contact/">tell us</a> at
+        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+      </p>
+    </div>
+  </div>
+</Base>

@@ -1,0 +1,158 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="string-replace">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Literal or regular expression, with a preview</span>
+  </div>
+  <div class="tool-body">
+    <div class="field">
+      <label for="sr-input">Text</label>
+      <textarea id="sr-input" spellcheck="false"></textarea>
+    </div>
+
+    <div class="grid-2 mt-2">
+      <div class="field">
+        <label for="sr-search">Find</label>
+        <input type="text" id="sr-search" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label for="sr-replace">Replace with</label>
+        <input type="text" id="sr-replace" spellcheck="false" />
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <select id="sr-mode" aria-label="Mode">
+        <option value="literal">Literal text</option>
+        <option value="regex">Regular expression</option>
+      </select>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="sr-case" style="width:auto" /> Case sensitive
+      </label>
+      <label class="chip" style="gap:6px;cursor:pointer">
+        <input type="checkbox" id="sr-whole" style="width:auto" /> Whole words
+      </label>
+      <button class="btn btn-primary" id="sr-apply" type="button">Replace</button>
+      <button class="btn btn-secondary" id="sr-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="sr-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="stat-row" id="sr-stats"></div>
+
+    <div class="output">
+      <div class="output-label"><span>Result</span></div>
+      <div class="output-box" id="sr-output" data-placeholder="The result appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('sr-input');
+  const searchInput = byId<HTMLInputElement>('sr-search');
+  const replaceInput = byId<HTMLInputElement>('sr-replace');
+  const output = byId('sr-output');
+  const status = byId('sr-status');
+  const stats = byId('sr-stats');
+  const modeSelect = byId<HTMLSelectElement>('sr-mode');
+  const caseToggle = byId<HTMLInputElement>('sr-case');
+  const wholeToggle = byId<HTMLInputElement>('sr-whole');
+  const applyButton = byId<HTMLButtonElement>('sr-apply');
+  const sampleButton = byId<HTMLButtonElement>('sr-sample');
+  const copyButton = byId<HTMLButtonElement>('sr-copy');
+
+  const SAMPLE_TEXT = `2026-01-14 ERROR could not reach api.internal:503
+2026-01-14 WARN retrying api.internal in 30s
+2026-01-14 ERROR could not reach api.internal:503`;
+  const SAMPLE_SEARCH = 'api\\.internal';
+  const SAMPLE_REPLACE = 'gateway.prod';
+
+  function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function apply() {
+    const text = input?.value ?? '';
+    const search = searchInput?.value ?? '';
+    const replacement = replaceInput?.value ?? '';
+    const useRegex = modeSelect?.value === 'regex';
+    const caseSensitive = caseToggle?.checked ?? true;
+
+    if (!text) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    if (!search) {
+      setStatus(status, 'Enter the text or pattern to look for.', 'error');
+      if (output) output.textContent = '';
+      return;
+    }
+
+    let pattern: RegExp;
+    try {
+      const source = useRegex ? search : escapeRegExp(search);
+      const flags = `${caseSensitive ? '' : 'i'}g`;
+      pattern = new RegExp(source, flags);
+    } catch (error) {
+      setStatus(status, `That is not a valid pattern: ${(error as Error).message}`, 'error');
+      if (output) output.textContent = '';
+      return;
+    }
+
+    const whole = wholeToggle?.checked ?? false;
+    let count = 0;
+    const result = text.replace(pattern, (match, ...rest) => {
+      count += 1;
+      if (whole) {
+        const before = rest[rest.length - 2] as string;
+        const after = rest[rest.length - 1] as string;
+        const isWhole = !/\w/.test(before) && !/\w/.test(after);
+        return isWhole ? replacement : match;
+      }
+      // Expand $1, ${name} and $$ in the replacement.
+      const groups = rest.slice(0, -2) as (string | undefined)[];
+      let expanded = replacement.replace(/\$(\$|\{([^}]+)\}|(\d+))/g, (_all, token, named, numeric) => {
+        if (token === '$') return '$';
+        if (named) return groups[Number(named) - 1] ?? '';
+        return groups[Number(numeric) - 1] ?? '';
+      });
+      expanded = expanded.replace(/\$(\d)/g, (_all, digit: string) => groups[Number(digit) - 1] ?? '');
+      return expanded;
+    });
+
+    clearStatus(status);
+    if (output) output.textContent = result;
+    if (stats) {
+      stats.innerHTML = `<span><b>${count}</b> replacement${count === 1 ? '' : 's'}</span><span>${useRegex ? 'Regular expression' : 'Literal text'}</span><span>${caseSensitive ? 'Case sensitive' : 'Case insensitive'}</span>`;
+    }
+  }
+
+  applyButton?.addEventListener('click', apply);
+  modeSelect?.addEventListener('change', apply);
+  caseToggle?.addEventListener('change', apply);
+  wholeToggle?.addEventListener('change', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE_TEXT;
+    if (searchInput) searchInput.value = SAMPLE_SEARCH;
+    if (replaceInput) replaceInput.value = SAMPLE_REPLACE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+</script>

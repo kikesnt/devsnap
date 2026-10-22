@@ -1,0 +1,81 @@
+---
+import Base from '../../layouts/Base.astro';
+import ToolIcon from '../../components/ToolIcon.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import { AD_SLOTS, SITE } from '../../config';
+
+const guidesSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Developer guides',
+  url: `${SITE.domain}/guides/`,
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: guides.length,
+    itemListElement: guides.map((guide, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: guide.title,
+      url: `${SITE.domain}/guides/${guide.slug}/`,
+    })),
+  },
+};
+import { allGuides as guides } from '../../data/guides';
+import { truncate } from '../../lib/format';
+---
+
+<Base
+  title="Developer guides"
+  description="Longer explanations for the concepts behind the tools: JWTs, regular expressions, cron schedules, timezones, WCAG contrast and UTM naming."
+  canonicalPath="/guides/"
+  ogImage="/og/default.png"
+  schemas={guidesSchema}
+>
+  <div class="wrap">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Guides</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Guides</h1>
+      <p class="lede">
+        The reasoning behind the tools. Each guide explains one concept well enough
+        that you can defend the decision in a code review.
+      </p>
+    </header>
+
+    <div class="prose mt-3">
+      <p>
+        These guides exist because a tool that shows you a ratio or a field
+        breakdown is more useful when you understand why the rule is what it
+        is. Each one covers a single idea — the ones that come up in code
+        reviews, in incident write-ups and in the arguments that take an
+        afternoon to settle.
+      </p>
+      <p>
+        They are written by {SITE.author}, they are checked against the
+        specification or the implementation they describe, and every tool they
+        mention runs in your browser.
+      </p>
+    </div>
+
+    <div class="card-grid mt-3">
+      {
+        guides.map((guide) => (
+          <a class="tool-card" href={`/guides/${guide.slug}/`}>
+            <span class="tc-name">
+              <span class="tc-glyph" aria-hidden="true"><ToolIcon name="markdown" size={17} /></span>
+              {guide.title}
+            </span>
+            <span class="tc-desc">
+              {guide.readingTime} · {truncate(guide.description, 78)}
+            </span>
+          </a>
+        ))
+      }
+    </div>
+
+    <AdSlot slot={AD_SLOTS.inArticle} />
+  </div>
+</Base>

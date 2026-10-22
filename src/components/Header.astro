@@ -1,0 +1,33 @@
+---
+import { SITE } from '../config';
+import ThemeToggle from './ThemeToggle.astro';
+
+const nav = [
+  { href: '/tools/', label: 'All tools' },
+  { href: '/tools/snapshot/', label: 'Snapshot' },
+  { href: '/guides/', label: 'Guides' },
+  { href: '/about/', label: 'About' },
+];
+
+const path = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">DS</span>
+      <span>{SITE.name}</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      {
+        nav.map((item) => (
+          <a href={item.href} aria-current={path.startsWith(item.href) ? 'page' : undefined}>
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+    <a class="header-cta" href="/tools/">Open the toolbox</a>
+    <ThemeToggle />
+  </div>
+</header>

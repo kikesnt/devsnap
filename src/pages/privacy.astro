@@ -1,0 +1,130 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+
+export const lastUpdated = '2026-10-15';
+---
+
+<Base
+  title="Privacy Policy — What Data DevSnap Collects"
+  description="How DevSnap handles data. The tools run in your browser, nothing you paste is uploaded, and there are no tracking cookies."
+  schemas={{
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Privacy Policy — What Data DevSnap Collects',
+    url: `${SITE.domain}/privacy/`,
+    author: { '@type': 'Person', name: SITE.author },
+    publisher: { '@type': 'Organization', name: SITE.publisher },
+  }}
+  canonicalPath="/privacy/"
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Privacy Policy</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Privacy Policy</h1>
+      <p class="lede">
+        The short version: the tools run in your browser, nothing you paste is ever
+        uploaded, and there are no tracking cookies on this site.
+      </p>
+      <p class="updated-note">Last updated {lastUpdated}</p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>1. What this site does with your input</h2>
+      <p>
+        Nothing. Every tool on {SITE.name} is implemented in JavaScript that runs inside
+        your browser. The value you paste into a tool is processed by the page you are
+        looking at and is never transmitted to us, because there is no endpoint that
+        would receive it.
+      </p>
+      <p>
+        You can verify this independently: open your browser's developer tools, switch
+        to the network panel, and use any tool. The only request that appears is the
+        one that loaded the page.
+      </p>
+
+      <h2>2. Server logs</h2>
+      <p>
+        Like any web server, the host that serves this site keeps standard access
+        logs containing the requested URL, the referring page, the browser's
+        user-agent string, the request timestamp and the IP address. These logs are
+        used for security and to keep the site running, are retained for a short
+        period, and are not combined with any profile of you.
+      </p>
+      <p>
+        A tool's input never appears in those logs, because it is never sent.
+      </p>
+
+      <h2>3. Advertising and cookies</h2>
+      <p>
+        This site is funded by advertising. Third-party vendors, including Google, use
+        cookies to serve ads based on your prior visits to this and other websites.
+      </p>
+      <ul>
+        <li>Google's use of advertising cookies enables it and its partners to serve ads based on your visits to this site and/or other sites on the internet.</li>
+        <li>You may opt out of personalised advertising by visiting <a href="https://adssettings.google.com/" rel="nofollow noopener noreferrer" target="_blank">Google Ads Settings</a>.</li>
+        <li>You can opt out of a third-party vendor's use of cookies for personalised advertising at <a href="https://www.aboutads.info/choices/" rel="nofollow noopener noreferrer" target="_blank">aboutads.info</a>.</li>
+      </ul>
+      <p>
+        We do not set our own tracking cookies, we do not operate a behavioural
+        advertising system, and we do not build a profile of you across sites. We do
+        use privacy-friendly, aggregate traffic measurement to understand which
+        pages are useful.
+      </p>
+
+      <h2>4. Analytics</h2>
+      <p>
+        We record aggregate, non-identifying usage data such as which pages are
+        visited and which country the request came from, in order to know which
+        tools are worth maintaining. This data is not used to build a profile of
+        individual visitors and is not shared with third parties.
+      </p>
+
+      <h2>5. Local storage</h2>
+      <p>
+        Some tools remember a preference, such as the theme you selected in the
+        snapshot tool or the options you chose in a formatter. That state is stored
+        in your browser's local storage, on your device, and is never sent to us. You
+        can clear it at any time through your browser settings.
+      </p>
+
+      <h2>6. Third-party content</h2>
+      <p>
+        Pages may contain outbound links to other websites. Once you follow one, that
+        site has its own privacy policy and its own data practices, over which we
+        have no control.
+      </p>
+
+      <h2>7. Children</h2>
+      <p>
+        This site is a developer utility and is not directed at children. We do not
+        knowingly collect personal information from anyone, of any age.
+      </p>
+
+      <h2>8. Your rights</h2>
+      <p>
+        Depending on where you live, you may have the right to access, correct or
+        delete personal data we hold about you, or to object to its processing. Since
+        we do not collect personal information beyond standard server logs and
+        aggregate analytics, there is very little to request. If you have a question
+        anyway, <a href="/contact/">contact us</a>.
+      </p>
+
+      <h2>9. Changes to this policy</h2>
+      <p>
+        If this policy changes materially, the date at the top of this page changes
+        with it. We will not retroactively apply a weaker policy to data collected
+        under a stronger one.
+      </p>
+
+      <h2>10. Contact</h2>
+      <p>
+        Questions about this policy: <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+      </p>
+    </div>
+  </div>
+</Base>

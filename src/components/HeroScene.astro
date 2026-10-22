@@ -1,0 +1,247 @@
+---
+/**
+ * Three.js constellation for the hero.
+ *
+ * The whole scene is a graph of nodes and the edges between near neighbours,
+ * which is the shape of the thing this site actually is: a set of small
+ * tools that connect to each other.
+ *
+ * Performance notes, because this is the homepage:
+ *  - three is loaded as a separate chunk after the first paint, so it never
+ *    blocks the Largest Contentful Paint.
+ *  - the canvas is paused when it scrolls out of view or the tab is hidden.
+ *  - device pixel ratio is capped, and the scene is a single draw call for
+ *    the points plus one for the lines.
+ *  - `prefers-reduced-motion` renders a single static frame.
+ */
+---
+
+<div class="hero-scene" id="hero-scene" aria-hidden="true">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-scene-fade"></div>
+</div>
+
+<script>
+  import { byId } from '../lib/dom';
+
+  const container = byId('hero-scene');
+  const canvas = byId<HTMLCanvasElement>('hero-canvas');
+
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (container && canvas) {
+    const start = async () => {
+      let THREE: typeof import('three');
+      try {
+        THREE = await import('three');
+      } catch {
+        container.remove();
+        return;
+      }
+
+      let renderer: InstanceType<typeof THREE.WebGLRenderer>;
+      try {
+        renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+          powerPreference: 'low-power',
+        });
+      } catch {
+        // No WebGL on this device or in this browser. The hero is decorative,
+        // so the page simply does without it.
+        container.remove();
+        return;
+      }
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+      camera.position.set(0, 0, 16);
+
+      const NODE_COUNT = 150;
+      const LINK_DISTANCE = 3.1;
+
+      // Nodes on a fibonacci sphere, pushed out by a little noise so the
+      // silhouette is not a perfect ball.
+      const positions = new Float32Array(NODE_COUNT * 3);
+      const sizes = new Float32Array(NODE_COUNT);
+      const golden = Math.PI * (3 - Math.sqrt(5));
+
+      for (let index = 0; index < NODE_COUNT; index += 1) {
+        const y = 1 - (index / (NODE_COUNT - 1)) * 2;
+        const radius = Math.sqrt(Math.max(0, 1 - y * y));
+        const theta = golden * index;
+        const jitter = 1 + (Math.sin(index * 12.9898) * 0.5 + 0.5) * 0.28;
+        positions[index * 3] = Math.cos(theta) * radius * 5.4 * jitter;
+        positions[index * 3 + 1] = y * 5.4 * jitter;
+        positions[index * 3 + 2] = Math.sin(theta) * radius * 5.4 * jitter;
+        sizes[index] = 2.2 + (Math.sin(index * 7.13) * 0.5 + 0.5) * 3.4;
+      }
+
+      const pointGeometry = new THREE.BufferGeometry();
+      pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      pointGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+      const pointMaterial = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: { value: 0 },
+          uColorA: { value: new THREE.Color('#6366f1') },
+          uColorB: { value: new THREE.Color('#22d3ee') },
+          uPixelRatio: { value: renderer.getPixelRatio() },
+        },
+        vertexShader: `
+          attribute float size;
+          varying float vDepth;
+          varying float vMix;
+          uniform float uTime;
+          uniform float uPixelRatio;
+          void main() {
+            vec3 pos = position;
+            float wave = sin(uTime * 0.55 + pos.x * 0.4 + pos.y * 0.3) * 0.09;
+            pos += normalize(pos) * wave;
+            vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+            vDepth = -mv.z;
+            vMix = clamp((pos.y + 6.0) / 12.0, 0.0, 1.0);
+            gl_PointSize = size * uPixelRatio * (30.0 / -mv.z);
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColorA;
+          uniform vec3 uColorB;
+          varying float vDepth;
+          varying float vMix;
+          void main() {
+            float d = length(gl_PointCoord - vec2(0.5));
+            if (d > 0.5) discard;
+            float alpha = smoothstep(0.5, 0.0, d);
+            vec3 color = mix(uColorB, uColorA, vMix);
+            float fade = smoothstep(34.0, 6.0, vDepth);
+            gl_FragColor = vec4(color, alpha * 0.85 * fade);
+          }
+        `,
+      });
+
+      const points = new THREE.Points(pointGeometry, pointMaterial);
+      scene.add(points);
+
+      // Edges between near neighbours.
+      const linkPositions: number[] = [];
+      for (let i = 0; i < NODE_COUNT; i += 1) {
+        for (let j = i + 1; j < NODE_COUNT; j += 1) {
+          const dx = positions[i * 3]! - positions[j * 3]!;
+          const dy = positions[i * 3 + 1]! - positions[j * 3 + 1]!;
+          const dz = positions[i * 3 + 2]! - positions[j * 3 + 2]!;
+          if (Math.sqrt(dx * dx + dy * dy + dz * dz) < LINK_DISTANCE) {
+            linkPositions.push(
+              positions[i * 3]!, positions[i * 3 + 1]!, positions[i * 3 + 2]!,
+              positions[j * 3]!, positions[j * 3 + 1]!, positions[j * 3 + 2]!
+            );
+          }
+        }
+      }
+
+      const linkGeometry = new THREE.BufferGeometry();
+      linkGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linkPositions, 3));
+
+      const linkMaterial = new THREE.LineBasicMaterial({
+        color: new THREE.Color('#4f7ff0'),
+        transparent: true,
+        opacity: 0.16,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+
+      const links = new THREE.LineSegments(linkGeometry, linkMaterial);
+      scene.add(links);
+
+      let width = 0;
+      let height = 0;
+
+      const resize = () => {
+        const rect = container!.getBoundingClientRect();
+        width = Math.max(1, rect.width);
+        height = Math.max(1, rect.height);
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        // Pull the camera back on narrow screens so the whole shape fits.
+        camera.position.z = width < 620 ? 22 : width < 900 ? 19 : 16;
+        camera.updateProjectionMatrix();
+      };
+
+      resize();
+      const observer = new ResizeObserver(resize);
+      observer.observe(container);
+
+      const pointer = { x: 0, y: 0 };
+      const onPointerMove = (event: PointerEvent) => {
+        const rect = container!.getBoundingClientRect();
+        pointer.x = (event.clientX - rect.left) / rect.width - 0.5;
+        pointer.y = (event.clientY - rect.top) / rect.height - 0.5;
+      };
+      if (!reduceMotion) {
+        window.addEventListener('pointermove', onPointerMove, { passive: true });
+      }
+
+      const clock = new THREE.Clock();
+      let visible = true;
+      let inView = true;
+
+      const visibility = () => {
+        visible = document.visibilityState === 'visible';
+      };
+      document.addEventListener('visibilitychange', visibility);
+
+      const intersection = new IntersectionObserver(
+        (entries) => {
+          inView = entries[0]?.isIntersecting ?? true;
+        },
+        { threshold: 0 }
+      );
+      intersection.observe(container);
+
+      const renderFrame = (elapsed: number) => {
+        pointMaterial.uniforms.uTime!.value = elapsed;
+        const spin = reduceMotion ? 0 : elapsed * 0.06;
+        points.rotation.y = spin;
+        points.rotation.x = Math.sin(elapsed * 0.22) * 0.08;
+        links.rotation.y = spin;
+        links.rotation.x = points.rotation.x;
+
+        if (!reduceMotion) {
+          camera.position.x += (pointer.x * 2.4 - camera.position.x) * 0.035;
+          camera.position.y += (-pointer.y * 1.6 - camera.position.y) * 0.035;
+          camera.lookAt(0, 0, 0);
+        }
+        renderer.render(scene, camera);
+      };
+
+      if (reduceMotion) {
+        renderFrame(0);
+      } else {
+        const loop = () => {
+          requestAnimationFrame(loop);
+          if (!visible || !inView) return;
+          renderFrame(clock.getElapsedTime());
+        };
+        loop();
+      }
+    };
+
+    // Never block the first paint: the scene appears a beat later.
+    if ('requestIdleCallback' in window) {
+      (window as Window & { requestIdleCallback: (cb: () => void) => void })
+        .requestIdleCallback(() => {
+          void start();
+        });
+    } else {
+      setTimeout(() => void start(), 200);
+    }
+  }
+</script>

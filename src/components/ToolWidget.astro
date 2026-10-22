@@ -1,0 +1,100 @@
+---
+/**
+ * Dispatches to the widget that matches the requested tool. The mapping is
+ * static so the bundler can tree-shake it and each page only ships the
+ * JavaScript for the tool it actually contains.
+ */
+import type { ToolDef } from '../data/types';
+
+import Snapshot from './tools/Snapshot.astro';
+import QrGenerator from './tools/QrGenerator.astro';
+import JsonFormatter from './tools/JsonFormatter.astro';
+import YamlToJson from './tools/YamlToJson.astro';
+import XmlFormatter from './tools/XmlFormatter.astro';
+import SqlFormatter from './tools/SqlFormatter.astro';
+import CsvToJson from './tools/CsvToJson.astro';
+import JsonToCsv from './tools/JsonToCsv.astro';
+import HtmlEntityEncoder from './tools/HtmlEntityEncoder.astro';
+import Base64Encoder from './tools/Base64Encoder.astro';
+import UrlEncoder from './tools/UrlEncoder.astro';
+import HashGenerator from './tools/HashGenerator.astro';
+import JwtDecoder from './tools/JwtDecoder.astro';
+import UuidGenerator from './tools/UuidGenerator.astro';
+import ChecksumCalculator from './tools/ChecksumCalculator.astro';
+import RegexTester from './tools/RegexTester.astro';
+import CronBuilder from './tools/CronBuilder.astro';
+import TimestampConverter from './tools/TimestampConverter.astro';
+import JsonSchemaGenerator from './tools/JsonSchemaGenerator.astro';
+import DiffChecker from './tools/DiffChecker.astro';
+import JsonDiff from './tools/JsonDiff.astro';
+import DotenvEditor from './tools/DotenvEditor.astro';
+import UtmBuilder from './tools/UtmBuilder.astro';
+import HttpStatusCodes from './tools/HttpStatusCodes.astro';
+import MarkdownPreview from './tools/MarkdownPreview.astro';
+import ColorContrastChecker from './tools/ColorContrastChecker.astro';
+import NanoidGenerator from './tools/NanoidGenerator.astro';
+import StringReplace from './tools/StringReplace.astro';
+import DateDifference from './tools/DateDifference.astro';
+import JsonRepair from './tools/JsonRepair.astro';
+import JsonSchemaValidator from './tools/JsonSchemaValidator.astro';
+import CurlConverter from './tools/CurlConverter.astro';
+import CaseConverter from './tools/CaseConverter.astro';
+import GitignoreGenerator from './tools/GitignoreGenerator.astro';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+
+const registry: Record<string, unknown> = {
+  snapshot: Snapshot,
+  'qr-generator': QrGenerator,
+  'json-formatter': JsonFormatter,
+  'yaml-to-json': YamlToJson,
+  'xml-formatter': XmlFormatter,
+  'sql-formatter': SqlFormatter,
+  'csv-to-json': CsvToJson,
+  'json-to-csv': JsonToCsv,
+  'html-entity-encoder': HtmlEntityEncoder,
+  'base64-encoder': Base64Encoder,
+  'url-encoder': UrlEncoder,
+  'hash-generator': HashGenerator,
+  'jwt-decoder': JwtDecoder,
+  'uuid-generator': UuidGenerator,
+  'checksum-calculator': ChecksumCalculator,
+  'regex-tester': RegexTester,
+  'cron-builder': CronBuilder,
+  'timestamp-converter': TimestampConverter,
+  'json-schema-generator': JsonSchemaGenerator,
+  'diff-checker': DiffChecker,
+  'json-diff': JsonDiff,
+  'dotenv-editor': DotenvEditor,
+  'utm-builder': UtmBuilder,
+  'http-status-codes': HttpStatusCodes,
+  'markdown-preview': MarkdownPreview,
+  'color-contrast-checker': ColorContrastChecker,
+  'nanoid-generator': NanoidGenerator,
+  'string-replace': StringReplace,
+  'date-difference': DateDifference,
+  'json-repair': JsonRepair,
+  'json-schema-validator': JsonSchemaValidator,
+  'curl-converter': CurlConverter,
+  'case-converter': CaseConverter,
+  'gitignore-generator': GitignoreGenerator,
+};
+
+const Widget = registry[tool.slug] as (typeof Snapshot) | undefined;
+---
+
+{
+  Widget ? (
+    <Widget tool={tool} />
+  ) : (
+    <div class="tool">
+      <div class="tool-body">
+        <p class="muted">This tool is not available yet.</p>
+      </div>
+    </div>
+  )
+}

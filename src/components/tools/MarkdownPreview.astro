@@ -1,0 +1,108 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="markdown-preview">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>GitHub-flavoured Markdown, rendered locally</span>
+  </div>
+  <div class="tool-body">
+    <div class="grid-2">
+      <div class="field">
+        <label for="md-input">Markdown</label>
+        <textarea id="md-input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="md-output">Preview</label>
+        <div class="output-box" id="md-output" style="min-height:320px"></div>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="md-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="md-copy" type="button">Copy HTML</button>
+      <button class="btn btn-ghost" id="md-copy-md" type="button">Copy Markdown</button>
+    </div>
+
+    <div class="stat-row" id="md-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+  import { renderMarkdown } from '../../lib/markdown';
+
+  const input = byId<HTMLTextAreaElement>('md-input');
+  const output = byId('md-output');
+  const stats = byId('md-stats');
+  const sampleButton = byId<HTMLButtonElement>('md-sample');
+  const copyHtml = byId<HTMLButtonElement>('md-copy');
+  const copyMarkdown = byId<HTMLButtonElement>('md-copy-md');
+
+  const SAMPLE = `# Release notes — v1.4.0
+
+A short summary of what changed, written in **Markdown** with a [link](https://example.com).
+
+## Highlights
+
+- The snapshot tool now renders diffs with proper colours
+- \`json-diff\` reports type changes separately from value changes
+- Every tool runs entirely in the browser
+
+## Checklist
+
+- [x] Client-side rendering
+- [x] No accounts required
+- [ ] Server-side PDF export
+
+## Comparison
+
+| Feature | Before | Now |
+| --- | --- | --- |
+| Themes | 1 | 7 |
+| Zoom levels | 2 | 5 |
+
+> Everything here is processed locally. Nothing is uploaded.
+
+\`\`\`js
+const result = diffJson(left, right);
+console.log(result.length);
+\`\`\`
+`;
+
+  function render() {
+    const source = input?.value ?? '';
+    const html = renderMarkdown(source);
+    if (output) output.innerHTML = html;
+    if (stats) {
+      const words = source.trim() ? source.trim().split(/\s+/).length : 0;
+      stats.innerHTML = `<span><b>${words}</b> words</span><span><b>${html.length.toLocaleString('en-US')}</b> characters of HTML</span>`;
+    }
+  }
+
+  input?.addEventListener('input', render);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    render();
+  });
+  copyHtml?.addEventListener('click', async () => {
+    const ok = await copyText(output?.innerHTML ?? '');
+    if (copyHtml) flashButton(copyHtml, ok ? 'Copied' : 'Copy failed', 'Copy HTML');
+  });
+  copyMarkdown?.addEventListener('click', async () => {
+    const ok = await copyText(input?.value ?? '');
+    if (copyMarkdown) flashButton(copyMarkdown, ok ? 'Copied' : 'Copy failed', 'Copy Markdown');
+  });
+
+  if (input) input.value = SAMPLE;
+  render();
+</script>

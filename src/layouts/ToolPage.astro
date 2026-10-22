@@ -1,0 +1,279 @@
+---
+import Base from './Base.astro';
+import AdSlot from '../components/AdSlot.astro';
+import ToolWidget from '../components/ToolWidget.astro';
+import ToolIcon from '../components/ToolIcon.astro';
+import { SITE, AD_SLOTS } from '../config';
+import { resolveRelated } from '../data/tools';
+import { truncate } from '../lib/format';
+import type { ToolDef, ModuleId } from '../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+const related = resolveRelated(tool.related);
+
+const canonicalPath = `/tools/${tool.slug}/`;
+const ogImage = `/og/${tool.slug}.png`;
+
+const breadcrumbs = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE.domain}/` },
+    { '@type': 'ListItem', position: 2, name: 'Tools', item: `${SITE.domain}/tools/` },
+    { '@type': 'ListItem', position: 3, name: tool.name, item: `${SITE.domain}${canonicalPath}` },
+  ],
+};
+
+const webApplication = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: tool.name,
+  url: `${SITE.domain}${canonicalPath}`,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any',
+  browserRequirements: 'Requires a modern browser with JavaScript enabled',
+  description: tool.description,
+  isAccessibleForFree: true,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  publisher: { '@type': 'Organization', name: SITE.publisher, url: SITE.domain },
+};
+
+const faqPage = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: tool.faq.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
+  })),
+};
+
+const schemas = [webApplication, faqPage, breadcrumbs];
+
+---
+
+<Base
+  title={tool.title}
+  description={tool.description}
+  canonicalPath={canonicalPath}
+  ogImage={ogImage}
+  ogType="article"
+  schemas={schemas}
+>
+  <div class="wrap">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li><a href="/tools/">Tools</a></li>
+      <li>{tool.name}</li>
+    </ol>
+  </div>
+
+  <div class="wrap">
+    <div class="layout-split">
+      <article>
+        <header class="tool-hero">
+          <h1>{tool.h1}</h1>
+          <p class="lede">{tool.lede}</p>
+        </header>
+
+        {
+          tool.layout.map((module) => {
+            if (module === 'facts' && tool.facts) {
+              return (
+                <dl class="fact-grid">
+                  {tool.facts.map((fact) => (
+                    <div class="fact">
+                      <dt>{fact.label}</dt>
+                      <dd>{fact.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              );
+            }
+            if (module === 'tool') {
+              return (
+                <div class="mt-3">
+                  <ToolWidget tool={tool} />
+                  <AdSlot slot={AD_SLOTS.belowTool} />
+                </div>
+              );
+            }
+            if (module === 'steps' && tool.steps) {
+              return (
+                <section id="section-steps">
+                  <h2>How to use it</h2>
+                  <ol class="steps">
+                    {tool.steps.map((step) => (
+                      <li>
+                        <b>{step.title}</b>
+                        {step.body}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              );
+            }
+            if (module === 'cases' && tool.cases) {
+              return (
+                <section id="section-cases">
+                  <h2>Where this earns its keep</h2>
+                  <div class="case-list">
+                    {tool.cases.map((item) => (
+                      <div class="case">
+                        <h3>{item.title}</h3>
+                        <p>{item.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            }
+            if (module === 'examples' && tool.examples) {
+              return (
+                <section id="section-examples">
+                  <h2>Reference</h2>
+                  {tool.examples.map((example) => (
+                    <div class="mt-2">
+                      <p class="muted small mb-1">{example.caption}</p>
+                      <div class="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              {example.headers.map((header) => (
+                                <th>{header}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {example.rows.map((row) => (
+                              <tr>
+                                {row.map((cell) => (
+                                  <td set:html={cell} />
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              );
+            }
+            if (module === 'notes' && tool.notes) {
+              return (
+                <section id="section-notes">
+                  <h2>Details that catch people out</h2>
+                  {tool.notes.map((note) => (
+                    <div class="callout callout-amber">
+                      <span class="callout-title">{note.title}</span>
+                      <p>{note.body}</p>
+                    </div>
+                  ))}
+                </section>
+              );
+            }
+            if (module === 'faq') {
+              return (
+                <section id="section-faq">
+                  <h2>Questions people ask</h2>
+                  <div class="faq">
+                    {tool.faq.map((item) => (
+                      <details>
+                        <summary>{item.q}</summary>
+                        <div class="faq-body">
+                          <p>{item.a}</p>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              );
+            }
+            if (module === 'why' && tool.why) {
+              return (
+                <section id="section-why">
+                  <div class="why-block">
+                    <h2>{tool.why.title}</h2>
+                    <p>{tool.why.body}</p>
+                    <ul>
+                      {tool.why.points.map((point) => (
+                        <li>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+              );
+            }
+            if (module === 'related') {
+              return (
+                <section class="hr-top" id="section-related">
+                  <h2>Related tools</h2>
+                  <div class="related-grid">
+                    {related.map((item) => (
+                      <a href={`/tools/${item.slug}/`}>
+                        {item.name}
+                        <span>{truncate(item.description, 78)}</span>
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              );
+            }
+            return null;
+          })
+        }
+
+        <AdSlot slot={AD_SLOTS.inArticle} />
+
+        <p class="updated-note">
+          Last reviewed {tool.updated}. Every tool on DevSnap runs entirely in your
+          browser, so whatever you paste here never reaches a server.
+        </p>
+      </article>
+
+      <aside>
+        <div class="card">
+          <h2 style="font-size:0.95rem;margin:0 0 10px">On this page</h2>
+          <ul style="list-style:none;padding:0;margin:0;font-size:0.87rem" id="onthispage">
+            {
+              tool.layout
+                .filter((module) => module !== 'tool' && module !== 'facts')
+                .map((module) => (
+                  <li style="margin-bottom:6px">
+                    <a href={`#section-${module}`}>
+                      {module === 'steps'
+                        ? 'How to use it'
+                        : module === 'cases'
+                          ? 'Where this earns its keep'
+                          : module === 'examples'
+                            ? 'Reference'
+                            : module === 'notes'
+                              ? 'Details that catch people out'
+                              : module === 'faq'
+                                ? 'Questions people ask'
+                                : module === 'why'
+                                  ? 'Why run it here'
+                                  : 'Related tools'}
+                    </a>
+                  </li>
+                ))
+            }
+          </ul>
+        </div>
+
+        <div class="card mt-3">
+          <h2 style="font-size:0.95rem;margin:0 0 6px">Runs in your browser</h2>
+          <p class="small muted" style="margin:0">
+            No account, no upload, no tracking cookie. Your data is processed by
+            the page you are reading and is never transmitted.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</Base>

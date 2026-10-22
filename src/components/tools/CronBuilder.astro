@@ -1,0 +1,190 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="cron-builder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Next run times are computed in your timezone</span>
+  </div>
+  <div class="tool-body">
+    <div id="cb-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="cb-expression">Cron expression</label>
+      <input type="text" id="cb-expression" spellcheck="false" placeholder="*/15 * * * *" />
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="cb-build" type="button">Build from schedule</button>
+      <button class="btn btn-secondary" id="cb-sample" type="button">Load example</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="cb-copy" type="button">Copy expression</button>
+    </div>
+
+    <div class="field mt-2">
+      <label for="cb-preset">Schedule presets</label>
+      <div class="row" id="cb-presets">
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="*/5 * * * *">Every 5 min</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="0 * * * *">Hourly</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="30 3 * * *">Daily 03:30</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="0 9 * * 1">Mondays 09:00</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="0 0 1 * *">Monthly</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-preset="0 2 * * 0">Sundays 02:00</button>
+      </div>
+    </div>
+
+    <div class="callout mt-3">
+      <span class="callout-title">In plain English</span>
+      <p id="cb-description">—</p>
+    </div>
+
+    <div class="table-wrap mt-2">
+      <table>
+        <thead>
+          <tr><th style="width:130px">Field</th><th style="width:130px">Value</th><th>Meaning</th></tr>
+        </thead>
+        <tbody id="cb-fields"></tbody>
+      </table>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Next runs (local time)</span><span id="cb-stats"></span></div>
+      <div class="output-box" id="cb-runs" data-placeholder="The next execution times appear here."></div>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Equivalent in other schedulers</span></div>
+      <div class="output-box" id="cb-variants" data-placeholder="Equivalent expressions appear here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { parseCron, describeCron, explainCron, nextRuns, formatRun } from '../../lib/cron';
+
+  const expressionInput = byId<HTMLInputElement>('cb-expression');
+  const description = byId('cb-description');
+  const fieldsBody = byId('cb-fields');
+  const runsBox = byId('cb-runs');
+  const variantsBox = byId('cb-variants');
+  const status = byId('cb-status');
+  const stats = byId('cb-stats');
+  const presets = byId('cb-presets');
+  const buildButton = byId<HTMLButtonElement>('cb-build');
+  const sampleButton = byId<HTMLButtonElement>('cb-sample');
+  const copyButton = byId<HTMLButtonElement>('cb-copy');
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+    );
+  }
+
+  function variantsFor(parsed: ReturnType<typeof parseCron>): string {
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parsed.fields;
+    const isEveryMinute = minute === '*';
+    const isEveryHour = hour === '*';
+
+    if (isEveryMinute && isEveryHour) {
+      return [
+        'AWS EventBridge   rate(1 minute)',
+        'GitHub Actions     (no direct equivalent; use a scheduled workflow)',
+        'Quartz            0 * * * * ? *',
+        'systemd timer     OnCalendar=*:0/1',
+      ].join('\n');
+    }
+
+    const days: Record<string, string> = {
+      '0': 'SUN',
+      '1': 'MON',
+      '2': 'TUE',
+      '3': 'WED',
+      '4': 'THU',
+      '5': 'FRI',
+      '6': 'SAT',
+      '7': 'SUN',
+    };
+
+    let quartz = `${minute} ${hour} ${dayOfMonth} ${month} ? *`;
+    if (dayOfWeek !== '*') quartz = `${minute} ${hour} ? ${month} ${dayOfWeek}`;
+
+    const eventBridge = `cron(${minute} ${hour} ${dayOfMonth} ${month} ? ${days[dayOfWeek] ?? '*'} *)`;
+
+    return [
+      `Unix cron         ${parsed.expression}`,
+      `Quartz            ${quartz}`,
+      `AWS EventBridge   ${eventBridge}`,
+      `systemd timer     OnCalendar=*-*-* ${hour}:${minute}:00`,
+    ].join('\n');
+  }
+
+  function run() {
+    const expression = expressionInput?.value.trim() ?? '';
+    if (!expression) {
+      clearStatus(status);
+      if (description) description.textContent = '—';
+      if (fieldsBody) fieldsBody.innerHTML = '';
+      if (runsBox) runsBox.textContent = '';
+      if (variantsBox) variantsBox.textContent = '';
+      if (stats) stats.textContent = '';
+      return;
+    }
+
+    const parsed = parseCron(expression);
+    if (!parsed.valid) {
+      setStatus(status, parsed.error ?? 'The expression could not be parsed.', 'error');
+      if (description) description.textContent = '—';
+      if (fieldsBody) fieldsBody.innerHTML = '';
+      if (runsBox) runsBox.textContent = '';
+      if (variantsBox) variantsBox.textContent = '';
+      if (stats) stats.textContent = '';
+      return;
+    }
+
+    clearStatus(status);
+    if (description) description.textContent = describeCron(parsed);
+    if (fieldsBody) {
+      fieldsBody.innerHTML = explainCron(parsed)
+        .map(
+          (entry) =>
+            `<tr><td><b>${escapeHtml(entry.field)}</b></td><td><code>${escapeHtml(entry.value)}</code></td><td>${escapeHtml(entry.meaning)}</td></tr>`
+        )
+        .join('');
+    }
+
+    const runs = nextRuns(parsed, 10);
+    if (runsBox) runsBox.textContent = runs.map(formatRun).join('\n');
+    if (stats) stats.textContent = `${runs.length} upcoming runs`;
+    if (variantsBox) variantsBox.textContent = variantsFor(parsed);
+  }
+
+  expressionInput?.addEventListener('input', run);
+  presets?.addEventListener('click', (event) => {
+    const target = (event.target as HTMLElement).closest('button');
+    const preset = target?.getAttribute('data-preset');
+    if (!preset) return;
+    if (expressionInput) expressionInput.value = preset;
+    run();
+  });
+  buildButton?.addEventListener('click', run);
+  sampleButton?.addEventListener('click', () => {
+    if (expressionInput) expressionInput.value = '*/15 * * * *';
+    run();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(expressionInput?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy expression');
+  });
+
+  if (expressionInput) expressionInput.value = '*/15 * * * *';
+  run();
+</script>

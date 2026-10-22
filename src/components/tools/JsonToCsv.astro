@@ -1,0 +1,155 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-to-csv">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Nested keys are flattened into dotted paths</span>
+  </div>
+  <div class="tool-body">
+    <div id="jtc-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jtc-input">JSON</label>
+        <textarea id="jtc-input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="jtc-output">CSV</label>
+        <textarea id="jtc-output" class="tall" spellcheck="false" readonly placeholder="The CSV appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <select id="jtc-delimiter" aria-label="Delimiter">
+        <option value=",">Comma</option>
+        <option value=";">Semicolon</option>
+        <option value="&#9;">Tab</option>
+        <option value="|">Pipe</option>
+      </select>
+      <button class="btn btn-primary" id="jtc-convert" type="button">Convert</button>
+      <button class="btn btn-secondary" id="jtc-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jtc-copy" type="button">Copy CSV</button>
+    </div>
+
+    <div class="stat-row" id="jtc-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { serializeCsv } from '../../lib/csv';
+
+  const input = byId<HTMLTextAreaElement>('jtc-input');
+  const output = byId<HTMLTextAreaElement>('jtc-output');
+  const status = byId('jtc-status');
+  const stats = byId('jtc-stats');
+  const delimiterSelect = byId<HTMLSelectElement>('jtc-delimiter');
+  const convertButton = byId<HTMLButtonElement>('jtc-convert');
+  const sampleButton = byId<HTMLButtonElement>('jtc-sample');
+  const copyButton = byId<HTMLButtonElement>('jtc-copy');
+
+  const SAMPLE = `[
+    { "id": 1, "user": { "name": "Ada", "address": { "city": "Lisbon", "country": "PT" } }, "tags": ["alpha", "beta"], "score": 10 },
+    { "id": 2, "user": { "name": "Grace", "address": { "city": "New York", "country": "US" } }, "tags": ["beta"], "score": 12, "active": true }
+  ]`;
+
+  type Flat = Record<string, string>;
+
+  function flatten(value: unknown, prefix = ''): Flat {
+    const out: Flat = {};
+    if (value === null || value === undefined) {
+      out[prefix || 'value'] = '';
+      return out;
+    }
+    if (Array.isArray(value)) {
+      const hasObjects = value.some((item) => item !== null && typeof item === 'object');
+      if (hasObjects) {
+        value.forEach((item, index) => {
+          Object.assign(out, flatten(item, prefix ? `${prefix}.${index}` : String(index)));
+        });
+        return out;
+      }
+      out[prefix || 'value'] = value.map((item) => (item === null ? '' : String(item))).join('; ');
+      return out;
+    }
+    if (typeof value === 'object') {
+      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+        Object.assign(out, flatten(child, prefix ? `${prefix}.${key}` : key));
+      }
+      return out;
+    }
+    out[prefix || 'value'] = typeof value === 'boolean' ? String(value) : String(value);
+    return out;
+  }
+
+  function toRecords(parsed: unknown): Flat[] {
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => flatten(item));
+    }
+    if (parsed && typeof parsed === 'object') {
+      const object = parsed as Record<string, unknown>;
+      const values = Object.values(object);
+      const isRecordOfRecords =
+        values.length > 0 && values.every((value) => Array.isArray(value));
+      if (isRecordOfRecords) {
+        const first = values[0] as unknown[];
+        return first.map((item) => flatten(item));
+      }
+    }
+    return [flatten(parsed)];
+  }
+
+  function convert() {
+    const raw = input?.value.trim() ?? '';
+    if (!raw) {
+      if (output) output.value = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      setStatus(status, `The input is not valid JSON: ${(error as Error).message}`, 'error');
+      if (output) output.value = '';
+      return;
+    }
+
+    const records = toRecords(parsed);
+    const headerSet = new Set<string>();
+    for (const record of records) for (const key of Object.keys(record)) headerSet.add(key);
+    const headers = [...headerSet];
+    const rows = records.map((record) => headers.map((header) => record[header] ?? ''));
+
+    const selected = delimiterSelect?.value ?? ',';
+    const delimiter = selected === '\\t' ? '\t' : selected;
+    const csv = serializeCsv(headers, rows, delimiter);
+
+    clearStatus(status);
+    if (output) output.value = csv;
+    if (stats) {
+      stats.innerHTML = `<span><b>${rows.length}</b> rows</span><span><b>${headers.length}</b> columns</span><span>Header: <b>${headers.join(', ')}</b></span>`;
+    }
+  }
+
+  convertButton?.addEventListener('click', convert);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    convert();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy CSV');
+  });
+</script>

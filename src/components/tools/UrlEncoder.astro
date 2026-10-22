@@ -1,0 +1,129 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="url-encoder">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Encode a component or parse a full query string</span>
+  </div>
+  <div class="tool-body">
+    <div id="ue-status" class="status" role="status"></div>
+
+    <div class="field">
+      <label for="ue-input">Input</label>
+      <textarea id="ue-input" class="short" spellcheck="false"></textarea>
+    </div>
+
+    <div class="tool-actions">
+      <select id="ue-mode" aria-label="Mode">
+        <option value="component">Encode a component</option>
+        <option value="url">Encode a full URL</option>
+        <option value="parse">Parse a query string</option>
+      </select>
+      <button class="btn btn-primary" id="ue-apply" type="button">Apply</button>
+      <button class="btn btn-secondary" id="ue-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="ue-copy" type="button">Copy result</button>
+    </div>
+
+    <div class="output">
+      <div class="output-label"><span>Result</span><span id="ue-stats"></span></div>
+      <div class="output-box" id="ue-output" data-placeholder="The result appears here."></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('ue-input');
+  const output = byId('ue-output');
+  const status = byId('ue-status');
+  const stats = byId('ue-stats');
+  const modeSelect = byId<HTMLSelectElement>('ue-mode');
+  const applyButton = byId<HTMLButtonElement>('ue-apply');
+  const sampleButton = byId<HTMLButtonElement>('ue-sample');
+  const copyButton = byId<HTMLButtonElement>('ue-copy');
+
+  const SAMPLE = 'https://example.com/search?q=blue+shoes&redirect=https%3A%2F%2Fshop.example.com%2Fcart%3Fid%3D42';
+
+  function encodeComponent(value: string): string {
+    return encodeURIComponent(value);
+  }
+
+  function encodeUrl(value: string): string {
+    try {
+      const url = new URL(value);
+      url.search = encodeURI(url.search).replace(/%20/g, '+');
+      url.hash = encodeURI(url.hash);
+      return url.toString();
+    } catch {
+      return encodeURI(value);
+    }
+  }
+
+  function parseQuery(value: string): string {
+    const query = value.includes('?') ? value.slice(value.indexOf('?') + 1) : value;
+    const params = new URLSearchParams(query);
+    const entries = [...params.entries()];
+
+    const seen = new Map<string, number>();
+    for (const [key] of entries) seen.set(key, (seen.get(key) ?? 0) + 1);
+
+    const lines: string[] = [];
+    for (const [key, rawValue] of entries) {
+      const repeated = (seen.get(key) ?? 0) > 1;
+      lines.push(
+        `${key}${repeated ? '  (repeated key)' : ''}\n  ${rawValue}`
+      );
+    }
+    const duplicates = [...seen.values()].filter((count) => count > 1).length;
+    const note =
+      duplicates > 0
+        ? `\n\n${duplicates} key${duplicates === 1 ? '' : 's'} appear more than once. Most frameworks keep only the last value.`
+        : '';
+    return `${entries.length} parameter${entries.length === 1 ? '' : 's'}\n\n${lines.join('\n\n')}${note}`;
+  }
+
+  function apply() {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.textContent = '';
+      clearStatus(status);
+      if (stats) stats.textContent = '';
+      return;
+    }
+    const mode = modeSelect?.value ?? 'component';
+    clearStatus(status);
+
+    if (mode === 'parse') {
+      const text = parseQuery(raw);
+      if (output) output.textContent = text;
+      if (stats) stats.textContent = 'Parsed locally';
+      return;
+    }
+
+    const result = mode === 'url' ? encodeUrl(raw) : encodeComponent(raw);
+    if (output) output.textContent = result;
+    if (stats) stats.textContent = `${raw.length} → ${result.length} characters`;
+  }
+
+  applyButton?.addEventListener('click', apply);
+  modeSelect?.addEventListener('change', apply);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    apply();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.textContent ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy result');
+  });
+</script>

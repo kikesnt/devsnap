@@ -1,0 +1,163 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+
+export const lastUpdated = '2026-10-18';
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Cookie Policy',
+  url: `${SITE.domain}/cookies/`,
+  dateModified: lastUpdated,
+  author: { '@type': 'Person', name: SITE.author },
+  publisher: { '@type': 'Organization', name: SITE.publisher },
+};
+---
+
+<Base
+  title="Cookie Policy — What This Site Stores"
+  description="Which cookies and local storage DevSnap uses, what each one does, who sets it, and how to control or delete it."
+  canonicalPath="/cookies/"
+  schemas={schema}
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Cookie Policy</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Cookie Policy</h1>
+      <p class="lede">
+        The short version: the tools on this site set no cookies at all. The
+        advertising that funds the site uses cookies, and this page says exactly
+        which ones and how to opt out.
+      </p>
+      <p class="updated-note">Last updated {lastUpdated}</p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>1. What this site stores in your browser</h2>
+      <p>
+        The developer tools on {SITE.name} run entirely in your browser and do
+        not set any cookies. They use your browser's <strong>local storage</strong>
+        for two things, and local storage is not a cookie: it is never sent to
+        a server and does not travel with a request.
+      </p>
+      <ul>
+        <li><code>devsnap-theme</code> — whether you chose the light or the dark interface. Used so the site does not flash the wrong colours on your next visit.</li>
+        <li><code>devsnap-consent</code> — your answer to the advertising consent banner, so it is not shown again on every page.</li>
+      </ul>
+      <p>
+        Clearing your browser's site data removes both. Nothing else is stored,
+        and no identifier of any kind is created for you by the tools.
+      </p>
+
+      <h2>2. Cookies set by the advertising</h2>
+      <p>
+        This site is funded by advertising, and the ad networks involved set
+        their own cookies and similar technologies. They are set by Google
+        AdSense and its partners, not by us, and they are used to serve
+        advertising and to measure how effective it is.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Set by</th>
+              <th>Purpose</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>IDE</code></td>
+              <td>Google (DoubleClick)</td>
+              <td>Builds a profile of interests based on your activity across sites, used to personalise advertising</td>
+              <td>Third-party</td>
+            </tr>
+            <tr>
+              <td><code>test_cookie</code></td>
+              <td>Google (DoubleClick)</td>
+              <td>Checks that your browser accepts cookies, set when an ad is served</td>
+              <td>First-party</td>
+            </tr>
+            <tr>
+              <td><code>_gcl_au</code></td>
+              <td>Google AdSense</td>
+              <td>Stores the conversion value when somebody clicks an ad</td>
+              <td>First-party</td>
+            </tr>
+            <tr>
+              <td><code>ANID</code></td>
+              <td>Google</td>
+              <td>Distinguishes browsers and devices for advertising measurement</td>
+              <td>Third-party</td>
+            </tr>
+            <tr>
+              <td><code>DSID</code>, <code>RUL</code></td>
+              <td>Google</td>
+              <td>Records which ads you have seen and which you have not</td>
+              <td>First-party</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The full list of cookies Google may set is documented by Google itself,
+        and the list changes over time. The table above covers the ones that
+        apply to a site of this kind.
+      </p>
+
+      <h2>3. Consent</h2>
+      <p>
+        When you first arrive, a banner asks whether you accept advertising
+        cookies. Until you answer, the site serves <strong>non-personalised</strong>
+        ads: they are still measured, but they are not based on a profile of
+        your interests and they do not use the cookies listed above.
+      </p>
+      <p>
+        If you accept, the site reloads once and advertising becomes
+        personalised. If you reject, the banner does not come back and the ads
+        stay non-personalised. You can change your answer at any time using the
+        "Cookie choices" link in the footer.
+      </p>
+      <p>
+        Visitors in the European Economic Area, the United Kingdom and
+        Switzerland are asked for explicit consent before any personalised
+        advertising cookie is set, which is the requirement under GDPR and the
+        ePrivacy rules.
+      </p>
+
+      <h2>4. How to control cookies</h2>
+      <ul>
+        <li>Use the "Cookie choices" link in the footer to change your answer.</li>
+        <li>Delete cookies in your browser settings. Every major browser can block or clear cookies for a single site.</li>
+        <li>Opt out of personalised advertising from Google at <a href="https://adssettings.google.com/" rel="nofollow noopener noreferrer" target="_blank">adssettings.google.com</a>.</li>
+        <li>Opt out of third-party vendor cookies at <a href="https://www.aboutads.info/choices/" rel="nofollow noopener noreferrer" target="_blank">aboutads.info</a>.</li>
+        <li>Use <a href="https://tools.google.com/dlpage/dnts" rel="nofollow noopener noreferrer" target="_blank">Google's Do Not Track</a> control, which is honoured by Google advertising.</li>
+      </ul>
+
+      <h2>5. Do Not Track</h2>
+      <p>
+        Some browsers send a Do Not Track header. We honour it: if it is
+        present, the site does not request personalised advertising.
+      </p>
+
+      <h2>6. Third-party embeds</h2>
+      <p>
+        The tools do not embed third-party content, so no other site receives
+        information about your visit. Outbound links to other sites are
+        ordinary links, and those sites have their own policies.
+      </p>
+
+      <h2>7. Changes and contact</h2>
+      <p>
+        If this policy changes, the date at the top changes with it. Questions:
+        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+      </p>
+    </div>
+  </div>
+</Base>

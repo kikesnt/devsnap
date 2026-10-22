@@ -1,0 +1,93 @@
+---
+/**
+ * Advertising consent banner.
+ *
+ * Until the visitor answers, the ad slots are served as non-personalised
+ * ads: they still measure, but they do not set the cookies that build a
+ * profile of interests. Accepting reloads the page once so every slot is
+ * requested with personalised advertising.
+ *
+ * Google requires a certified consent management platform for advertising in
+ * the EEA, the UK and Switzerland. The banner here is a reasonable starting
+ * point, but Funding Choices (free with an AdSense account) is the compliant
+ * option once the account exists.
+ */
+import { ADS_ENABLED } from '../config';
+---
+
+{
+  ADS_ENABLED && (
+    <div class="consent" id="consent-banner" role="dialog" aria-live="polite" aria-label="Cookie choices" hidden>
+      <div class="consent-inner">
+        <div class="consent-text">
+          <strong>We use cookies for advertising.</strong>
+          <p>
+            The tools on this site set none, but the ads that fund it do. Until you
+            choose, ads are served non-personalised. Read the{' '}
+            <a href="/cookies/">Cookie Policy</a>.
+          </p>
+        </div>
+        <div class="consent-actions">
+          <button class="btn btn-secondary btn-sm" id="consent-reject" type="button">Reject</button>
+          <button class="btn btn-primary btn-sm" id="consent-accept" type="button">Accept</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+<script>
+  const CONSENT_KEY = 'devsnap-consent';
+
+  function readConsent(): 'granted' | 'denied' | null {
+    try {
+      const value = localStorage.getItem(CONSENT_KEY);
+      return value === 'granted' || value === 'denied' ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeConsent(value: 'granted' | 'denied') {
+    try {
+      localStorage.setItem(CONSENT_KEY, value);
+      // A first-party cookie as well, so the choice is available server-side.
+      document.cookie = `${CONSENT_KEY}=${value}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch {
+      // The banner still works for this page view.
+    }
+  }
+
+  // Tells the ad slot whether to request personalised advertising.
+  (window as Window & { __adsConsent?: string }).__adsConsent = readConsent() ?? 'unknown';
+
+  const banner = document.getElementById('consent-banner');
+  const acceptButton = document.getElementById('consent-accept');
+  const rejectButton = document.getElementById('consent-reject');
+
+  if (banner && !readConsent()) {
+    banner.hidden = false;
+  }
+
+  acceptButton?.addEventListener('click', () => {
+    writeConsent('granted');
+    (window as Window & { __adsConsent?: string }).__adsConsent = 'granted';
+    // Reload so every slot is requested again with personalised advertising.
+    window.location.reload();
+  });
+
+  rejectButton?.addEventListener('click', () => {
+    writeConsent('denied');
+    (window as Window & { __adsConsent?: string }).__adsConsent = 'denied';
+    if (banner) banner.hidden = true;
+  });
+
+  // The footer link reopens the banner so the choice can be changed.
+  document.querySelectorAll('[data-consent-reset]').forEach((element) => {
+    element.addEventListener('click', (event) => {
+      event.preventDefault();
+      writeConsent('denied');
+      if (banner) banner.hidden = false;
+    });
+  });
+</script>

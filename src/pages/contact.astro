@@ -1,0 +1,78 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../config';
+---
+
+<Base
+  title="Contact DevSnap — Report a Bug or Request a Tool"
+  description="Get in touch with the DevSnap team. Report a wrong answer from a tool, request a tool you need, or say hello."
+  schemas={{
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Contact DevSnap — Report a Bug or Request a Tool',
+    url: `${SITE.domain}/contact/`,
+    author: { '@type': 'Person', name: SITE.author },
+    publisher: { '@type': 'Organization', name: SITE.publisher },
+  }}
+  canonicalPath="/contact/"
+>
+  <div class="wrap wrap-narrow">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Contact</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Get in touch</h1>
+      <p class="lede">
+        Bug reports, missing tools, corrections and "this saved me twenty minutes"
+        messages are all welcome.
+      </p>
+    </header>
+
+    <div class="prose mt-3">
+      <h2>Email</h2>
+      <p>
+        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+      </p>
+      <p>
+        This is a monitored address, and a real person reads it. It is the fastest
+        route to us and the only one we guarantee to answer.
+      </p>
+
+      <h2>Reporting a wrong answer</h2>
+      <p>
+        A wrong answer from one of these tools is more important to us than a feature
+        request, because a tool that gives a confident wrong result breaks somebody's
+        build and they will not know why. If you send one, include:
+      </p>
+      <ul>
+        <li>The tool you were using and the URL of its page.</li>
+        <li>The input that produced the wrong result.</li>
+        <li>What you expected and what you got instead.</li>
+      </ul>
+      <p>
+        You do not need to scrub the input before sending it — but please do scrub
+        anything that is a live credential. The tools run locally precisely so that a
+        secret never has to leave your machine, and a bug report is an exception you
+        can avoid.
+      </p>
+
+      <h2>Requesting a tool</h2>
+      <p>
+        Tell us what you were trying to do, not just what you want built. The best
+        requests we have received described a moment of friction — "I need to convert
+        this payload into a form body and then check it against a schema" — and the
+        tool that came out of it was more useful than the one that would have come
+        from a feature list.
+      </p>
+
+      <h2>Response time</h2>
+      <p>
+        Usually within a few working days. A report that describes a wrong answer is
+        prioritised over a feature request, and a request that blocks your work is
+        prioritised over both.
+      </p>
+    </div>
+  </div>
+</Base>

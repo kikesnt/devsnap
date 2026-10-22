@@ -1,0 +1,107 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-schema-generator">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Draft 2020-12, inferred from a sample document</span>
+  </div>
+  <div class="tool-body">
+    <div id="jsg-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jsg-input">Sample JSON</label>
+        <textarea id="jsg-input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="jsg-output">JSON Schema</label>
+        <textarea id="jsg-output" class="tall" spellcheck="false" readonly placeholder="The generated schema appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <input type="text" id="jsg-title" placeholder="Schema title (optional)" style="max-width:260px" />
+      <button class="btn btn-primary" id="jsg-generate" type="button">Generate schema</button>
+      <button class="btn btn-secondary" id="jsg-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jsg-copy" type="button">Copy schema</button>
+    </div>
+
+    <div class="stat-row" id="jsg-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton } from '../../lib/dom';
+  import { inferSchema, normalizeSchema } from '../../lib/schema';
+
+  const input = byId<HTMLTextAreaElement>('jsg-input');
+  const output = byId<HTMLTextAreaElement>('jsg-output');
+  const titleInput = byId<HTMLInputElement>('jsg-title');
+  const status = byId('jsg-status');
+  const stats = byId('jsg-stats');
+  const generateButton = byId<HTMLButtonElement>('jsg-generate');
+  const sampleButton = byId<HTMLButtonElement>('jsg-sample');
+  const copyButton = byId<HTMLButtonElement>('jsg-copy');
+
+  const SAMPLE = `{
+    "id": 42,
+    "email": "ada@example.com",
+    "active": true,
+    "balance": 128.45,
+    "tags": ["alpha", "beta"],
+    "profile": {
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "joinedAt": "2019-04-01T00:00:00Z"
+    },
+    "roles": [{ "name": "admin", "level": 3 }]
+  }`;
+
+  function generate() {
+    const raw = (input?.value ?? '').trim();
+    if (!raw) {
+      if (output) output.value = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      setStatus(status, `The sample is not valid JSON: ${(error as Error).message}`, 'error');
+      if (output) output.value = '';
+      return;
+    }
+
+    const title = (titleInput?.value ?? '').trim() || undefined;
+    const schema = normalizeSchema(inferSchema(parsed, title));
+    clearStatus(status);
+    if (output) output.value = JSON.stringify(schema, null, 2);
+
+    const properties = schema.properties ? Object.keys(schema.properties).length : 0;
+    if (stats) {
+      stats.innerHTML = `<span><b>${properties}</b> top-level properties</span><span><b>${schema.required?.length ?? 0}</b> required</span><span>Draft 2020-12</span>`;
+    }
+  }
+
+  generateButton?.addEventListener('click', generate);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    generate();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy schema');
+  });
+</script>

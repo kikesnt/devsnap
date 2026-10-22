@@ -1,0 +1,86 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="sql-formatter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Only whitespace and keyword casing change</span>
+  </div>
+  <div class="tool-body">
+    <div class="grid-2">
+      <div class="field">
+        <label for="sf-input">SQL</label>
+        <textarea id="sf-input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="sf-output">Formatted</label>
+        <textarea id="sf-output" class="tall" spellcheck="false" readonly placeholder="The formatted query appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <div class="row" style="gap:8px">
+        <select id="sf-indent" aria-label="Indentation">
+          <option value="2">2 spaces</option>
+          <option value="4">4 spaces</option>
+          <option value="8">8 spaces</option>
+        </select>
+        <select id="sf-case" aria-label="Keyword casing">
+          <option value="upper">UPPER CASE</option>
+          <option value="lower">lower case</option>
+          <option value="preserve">Preserve</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="sf-format" type="button">Format</button>
+      <button class="btn btn-secondary" id="sf-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="sf-copy" type="button">Copy SQL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { byId, copyText, flashButton } from '../../lib/dom';
+  import { formatSql } from '../../lib/sql';
+
+  const input = byId<HTMLTextAreaElement>('sf-input');
+  const output = byId<HTMLTextAreaElement>('sf-output');
+  const indentSelect = byId<HTMLSelectElement>('sf-indent');
+  const caseSelect = byId<HTMLSelectElement>('sf-case');
+  const formatButton = byId<HTMLButtonElement>('sf-format');
+  const sampleButton = byId<HTMLButtonElement>('sf-sample');
+  const copyButton = byId<HTMLButtonElement>('sf-copy');
+
+  const SAMPLE = `select o.id,o.total,c.name from orders o join customers c on c.id=o.customer_id where o.status='paid' and o.total>100 group by o.id,c.name having count(*)>1 order by o.total desc limit 100`;
+
+  function run() {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.value = '';
+      return;
+    }
+    const indent = Number(indentSelect?.value ?? 2);
+    const keywordCase = (caseSelect?.value ?? 'upper') as 'upper' | 'lower' | 'preserve';
+    if (output) output.value = formatSql(raw, { indent, keywordCase });
+  }
+
+  formatButton?.addEventListener('click', run);
+  indentSelect?.addEventListener('change', run);
+  caseSelect?.addEventListener('change', run);
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    run();
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy SQL');
+  });
+</script>

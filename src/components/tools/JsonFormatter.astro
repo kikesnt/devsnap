@@ -1,0 +1,120 @@
+---
+import type { ToolDef } from '../../data/types';
+
+interface Props {
+  tool: ToolDef;
+}
+
+const { tool } = Astro.props;
+---
+
+<div class="tool" data-tool="json-formatter">
+  <div class="tool-head">
+    <span class="tool-dot" aria-hidden="true"></span>
+    <strong>{tool.name}</strong>
+    <span>Parsed locally with the browser's own JSON engine</span>
+  </div>
+  <div class="tool-body">
+    <div id="jf-status" class="status" role="status"></div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="jf-input">Input</label>
+        <textarea id="jf-input" spellcheck="false" placeholder='{ "name": "devsnap", "tools": 29 }'></textarea>
+      </div>
+      <div class="field">
+        <label for="jf-output">Output</label>
+        <textarea id="jf-output" class="tall" spellcheck="false" readonly placeholder="The formatted JSON appears here."></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions">
+      <button class="btn btn-primary" id="jf-format" type="button">Pretty print</button>
+      <button class="btn btn-secondary" id="jf-minify" type="button">Minify</button>
+      <button class="btn btn-secondary" id="jf-sample" type="button">Load sample</button>
+      <span class="tool-actions-spacer"></span>
+      <button class="btn btn-ghost" id="jf-copy" type="button">Copy output</button>
+    </div>
+
+    <div class="stat-row" id="jf-stats"></div>
+  </div>
+</div>
+
+<script>
+  import { byId, setStatus, clearStatus, copyText, flashButton, debounce } from '../../lib/dom';
+
+  const input = byId<HTMLTextAreaElement>('jf-input');
+  const output = byId<HTMLTextAreaElement>('jf-output');
+  const status = byId('jf-status');
+  const stats = byId('jf-stats');
+  const formatButton = byId<HTMLButtonElement>('jf-format');
+  const minifyButton = byId<HTMLButtonElement>('jf-minify');
+  const sampleButton = byId<HTMLButtonElement>('jf-sample');
+  const copyButton = byId<HTMLButtonElement>('jf-copy');
+
+  const SAMPLE = `{
+    "name": "devsnap",
+    "version": "1.0.0",
+    "tools": 29,
+    "clientSide": true,
+    "features": ["json", "regex", "jwt", "cron", "qr"],
+    "maintainer": { "name": "The DevSnap team", "contact": "hello@devsnap.cc" }
+  }`;
+
+  /** Converts a character offset into a 1-based line and column. */
+  function locate(text: string, offset: number) {
+    const before = text.slice(0, offset);
+    const lines = before.split('\n');
+    return { line: lines.length, column: lines[lines.length - 1]!.length + 1 };
+  }
+
+  function describeError(text: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    const match = message.match(/position (\d+)/);
+    if (!match) return message;
+    const offset = Number(match[1]);
+    const { line, column } = locate(text, offset);
+    const lines = text.split('\n');
+    const context = lines[line - 1] ?? '';
+    const caret = ' '.repeat(Math.max(0, column - 1)) + '^';
+    return `Invalid JSON at line ${line}, column ${column}.\n\n${context}\n${caret}\n\n${message}`;
+  }
+
+  function run(indent: number) {
+    const raw = input?.value ?? '';
+    if (!raw.trim()) {
+      if (output) output.value = '';
+      clearStatus(status);
+      if (stats) stats.innerHTML = '';
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const text = JSON.stringify(parsed, null, indent);
+      if (output) output.value = text;
+      clearStatus(status);
+      if (stats) {
+        const size = new Blob([text]).size;
+        stats.innerHTML = `<span>Valid JSON · <b>${size.toLocaleString('en-US')}</b> bytes formatted</span>`;
+      }
+    } catch (error) {
+      if (output) output.value = '';
+      setStatus(status, describeError(raw, error), 'error');
+      if (stats) stats.innerHTML = '';
+    }
+  }
+
+  const runDebounced = debounce(() => run(2), 150);
+
+  input?.addEventListener('input', runDebounced);
+  formatButton?.addEventListener('click', () => run(2));
+  minifyButton?.addEventListener('click', () => run(0));
+  sampleButton?.addEventListener('click', () => {
+    if (input) input.value = SAMPLE;
+    run(2);
+  });
+  copyButton?.addEventListener('click', async () => {
+    const ok = await copyText(output?.value ?? '');
+    if (copyButton) flashButton(copyButton, ok ? 'Copied' : 'Copy failed', 'Copy output');
+  });
+</script>
