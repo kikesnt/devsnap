@@ -312,16 +312,21 @@
       };
       loop();
 
-      // The tool dispatches the parsed documents and the changed paths.
-      document.addEventListener('devsnap:json-diff', (event) => {
-        const detail = (event as CustomEvent).detail as {
-          left: unknown;
-          right: unknown;
-          changed: string[];
-        };
+      // The tool dispatches the parsed documents and the changed paths, and
+      // also publishes them, because this scene loads lazily and may start
+      // after the first dispatch.
+      const apply = (detail: { left: unknown; right: unknown; changed: string[] }) => {
         if (hint) hint.style.display = 'none';
         rebuild(detail.left, detail.right, new Set(detail.changed));
+      };
+
+      document.addEventListener('devsnap:json-diff', (event) => {
+        apply((event as CustomEvent).detail as { left: unknown; right: unknown; changed: string[] });
       });
+
+      const published = (window as Window & { __devsnapJsonDiff?: { left: unknown; right: unknown; changed: string[] } })
+        .__devsnapJsonDiff;
+      if (published) apply(published);
     };
 
     if ('requestIdleCallback' in window) {
