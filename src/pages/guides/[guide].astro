@@ -155,9 +155,20 @@ const breadcrumbSchema = {
 
         <div class="card mt-3">
           <h2 style="font-size:0.95rem;margin:0 0 6px">Try the tools</h2>
+          {/*
+            The card used to say "every tool referenced in this guide" and then
+            list none of them. The data was already loaded; it just was not
+            rendered.
+          */}
+          <ul class="tool-links">
+            {relatedTools.map((tool) => (
+              <li>
+                <a href={`/tools/${tool.slug}/`}>{tool.name}</a>
+              </li>
+            ))}
+          </ul>
           <p class="small muted" style="margin:0">
-            Every tool referenced in this guide runs in your browser and sends nothing
-            anywhere.
+            Every one of them runs in your browser and sends nothing anywhere.
           </p>
         </div>
       </aside>
