@@ -20,7 +20,7 @@ permissions:
 jobs:
   check:
     name: Build and check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -72,7 +72,7 @@ jobs:
     # Nothing happens until this variable is set to "true" in
     # Settings -> Secrets and variables -> Actions -> Variables.
     if: github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: production
       url: ${{ steps.deploy.outputs.deployment-url }}
