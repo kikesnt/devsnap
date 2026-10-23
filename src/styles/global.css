@@ -135,6 +135,15 @@
   box-sizing: border-box;
 }
 
+/*
+ * The `hidden` attribute has to win over a component's `display`. It is the
+ * only hiding mechanism that is both declarative and visible to assistive
+ * technology, so nothing here should be able to override it by accident.
+ */
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
@@ -892,6 +901,25 @@ textarea {
   min-height: 190px;
   resize: vertical;
   tab-size: 2;
+}
+
+/*
+ * iOS Safari zooms the whole page when a control with a font size below
+ * 16px takes focus, and never zooms back out. On a site whose entire job is
+ * typing into textareas that is not a detail. The desktop sizes stay as
+ * designed; only the touch-width layout is bumped to the threshold.
+ */
+@media (max-width: 760px) {
+  textarea,
+  input[type='text'],
+  input[type='number'],
+  input[type='search'],
+  input[type='email'],
+  input[type='url'],
+  input[type='tel'],
+  select {
+    font-size: 16px;
+  }
 }
 
 textarea.tall {
@@ -1952,4 +1980,34 @@ select {
   .proof-strip-label {
     display: none;
   }
+}
+
+/* ---------- Tool directory filter ---------- */
+
+.tool-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 1.4rem;
+}
+
+.tool-filter input {
+  max-width: 380px;
+  font-family: var(--font-sans);
+}
+
+.tool-filter-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-filter-empty {
+  margin: 1.5rem 0;
+  padding: 18px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-muted);
 }

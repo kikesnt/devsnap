@@ -3,6 +3,8 @@ import Base from '../../layouts/Base.astro';
 import ToolIcon from '../../components/ToolIcon.astro';
 import AdSlot from '../../components/AdSlot.astro';
 import { SITE, AD_SLOTS } from '../../config';
+import { tools, toolsByCategory } from '../../data/tools';
+import { truncate } from '../../lib/format';
 
 const collectionSchema = {
   '@context': 'https://schema.org',
@@ -21,8 +23,6 @@ const collectionSchema = {
     })),
   },
 };
-import { tools, toolsByCategory } from '../../data/tools';
-import { truncate } from '../../lib/format';
 
 const grouped = toolsByCategory();
 ---
@@ -46,15 +46,34 @@ const grouped = toolsByCategory();
         Every tool on this page runs entirely in your browser. There is no account to
         create, nothing to install, and no data leaves the tab.
       </p>
+
+      <div class="tool-filter">
+        <label class="sr-only" for="tool-filter">Filter the tools</label>
+        <input
+          type="search"
+          id="tool-filter"
+          placeholder={`Filter ${tools.length} tools by name or keyword`}
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="tool-filter-status" id="tool-filter-status" role="status" aria-live="polite">
+          {tools.length} tools
+        </p>
+      </div>
     </header>
 
     {
       grouped.map((group) => (
-        <section class="section-tight">
+        <section class="section-tight" data-tool-group>
           <h2>{group.category}</h2>
           <div class="card-grid">
             {group.tools.map((tool) => (
-              <a class="tool-card" href={`/tools/${tool.slug}/`}>
+              <a
+                class="tool-card"
+                href={`/tools/${tool.slug}/`}
+                data-tool-card
+                data-search={`${tool.name} ${tool.keywords.join(' ')} ${tool.description}`.toLowerCase()}
+              >
                 <span class="tc-name">
                   <span class="tc-glyph" aria-hidden="true"><ToolIcon name={tool.icon} size={17} /></span>
                   {tool.name}
@@ -67,6 +86,57 @@ const grouped = toolsByCategory();
       ))
     }
 
+    <p class="tool-filter-empty" id="tool-filter-empty" hidden>
+      No tool matches that. Try <a href="/tools/json-formatter/">JSON</a>,
+      <a href="/tools/regex-tester/">regex</a> or <a href="/tools/hash-generator/">hashing</a>,
+      or <a href="/contact/">ask for the tool you need</a>.
+    </p>
+
     <AdSlot slot={AD_SLOTS.inArticle} />
   </div>
 </Base>
+
+<script>
+  /*
+   * The filter is progressive enhancement: the full list is in the HTML, and
+   * this only hides cards. A crawler, a reader without JavaScript and the
+   * browser's own find-in-page all still see every tool.
+   */
+  const input = document.getElementById('tool-filter') as HTMLInputElement | null;
+  const status = document.getElementById('tool-filter-status');
+  const empty = document.getElementById('tool-filter-empty');
+  const cards = [...document.querySelectorAll<HTMLElement>('[data-tool-card]')];
+  const groups = [...document.querySelectorAll<HTMLElement>('[data-tool-group]')];
+
+  function applyFilter(): void {
+    const query = (input?.value ?? '').trim().toLowerCase();
+    let matches = 0;
+
+    for (const card of cards) {
+      const haystack = card.dataset.search ?? card.textContent?.toLowerCase() ?? '';
+      const hit = query === '' || haystack.includes(query);
+      card.hidden = !hit;
+      if (hit) matches += 1;
+    }
+
+    for (const group of groups) {
+      group.hidden = !group.querySelector('[data-tool-card]:not([hidden])');
+    }
+
+    if (status) {
+      status.textContent =
+        query === ''
+          ? `${cards.length} tools`
+          : `${matches} ${matches === 1 ? 'tool' : 'tools'} match`;
+    }
+    if (empty) empty.hidden = matches > 0;
+  }
+
+  input?.addEventListener('input', applyFilter);
+  input?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      input.value = '';
+      applyFilter();
+    }
+  });
+</script>
