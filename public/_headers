@@ -47,3 +47,6 @@
 
 /sitemap-0.xml
   Cache-Control: public, max-age=3600
+
+/guides/rss.xml
+  Cache-Control: public, max-age=3600

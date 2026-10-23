@@ -73,6 +73,12 @@ const adsActive = ADS_ENABLED && !hideAds;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="sitemap" href="/sitemap-index.xml" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${SITE.name} guides`}
+      href="/guides/rss.xml"
+    />
 
     {
       adsActive && (

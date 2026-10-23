@@ -67,7 +67,9 @@ documented 2026 case study of a 65-tool site that was rejected despite having
 - [x] Varying the *order* of the content modules per tool, not just the nouns
 - [x] JSON-LD server-rendered in the initial HTML: `WebApplication`,
       `FAQPage`, `BreadcrumbList`
-- [x] 8 supporting guides that demonstrate expertise and link into the tools
+- [x] 16 supporting guides that demonstrate expertise and link into the tools.
+      Every guide is linked from at least three pages, and every tool page
+      links to the guides that explain its subject.
 
 The module-order variation is the part people miss. The same July 2026 case
 study found that the most-repeated verbatim clause across 65 pages appeared only
