@@ -7,6 +7,16 @@ import { SITE, AD_SLOTS } from '../config';
 import { tools, toolsByCategory } from '../data/tools';
 import { allGuides as guides } from '../data/guides';
 import benchmarks from '../data/benchmarks.json';
+
+/*
+ * The proof strip quotes the slowest row. It used to name the text diff in
+ * prose, which was true when the diff was the slowest thing measured and
+ * stopped being true as soon as JSON repair was added — the kind of sentence
+ * that is wrong in a way nobody notices. Derive it instead.
+ */
+const slowest = benchmarks.rows.reduce((worst, row) =>
+  row.medianMs > worst.medianMs ? row : worst
+);
 import { truncate } from '../lib/format';
 
 const grouped = toolsByCategory();
@@ -140,9 +150,9 @@ const toolListSchema = {
         <span class="proof-strip-body">
           <strong>Measured, not promised.</strong> Every algorithm behind these tools is
           timed on a real machine and the numbers are published: input size, median, best
-          run, and the script that regenerates the table. The slowest operation on the site
-          is a {Math.round(Math.max(...benchmarks.rows.map((row) => row.medianMs)))} ms
-          text diff over two thousand lines.
+          run, and the script that regenerates the table. The slowest operation on the
+          site is {slowest.label} at {Math.round(slowest.medianMs)} ms for{' '}
+          {slowest.inputLabel}. Everything else is faster.
         </span>
         <span class="proof-strip-arrow" aria-hidden="true">→</span>
       </a>

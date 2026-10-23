@@ -33,6 +33,18 @@
 
   if (container && canvas) {
     const start = async () => {
+      /*
+       * The scene is display:none below 980px, and three.js is 720 kB. On a
+       * phone that is the largest download on the site spent rendering
+       * something that is not on the screen, so the import never happens.
+       * The same goes for a browser that has asked to save data.
+       */
+      if (window.matchMedia('(max-width: 980px)').matches) return;
+      const connection = (
+        navigator as Navigator & { connection?: { saveData?: boolean } }
+      ).connection;
+      if (connection?.saveData) return;
+
       let THREE: typeof import('three');
       try {
         THREE = await import('three');
