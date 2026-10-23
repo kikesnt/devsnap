@@ -66,19 +66,50 @@ All of them live in one place: [`src/config.ts`](src/config.ts).
 
 ## Deploy
 
-### Cloudflare Pages (recommended)
+The site is fully static: `npm run build` produces a plain `dist/` directory.
+Any static host works — Cloudflare Pages, Netlify, Vercel, GitHub Pages, an
+S3 bucket behind a CDN. There is no adapter and no server runtime.
 
-The site is fully static, so any static host works. On Cloudflare Pages:
+### Option A — Cloudflare Pages, connected to this repository
 
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
-- **Environment variables:** add the `PUBLIC_*` variables above
-- **Node version:** set `NODE_VERSION=22.23.4` in the build environment
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** →
+   **Connect to Git**, and pick this repository.
+2. Build settings:
+   - **Framework preset:** Astro
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+   - **Node version:** add an environment variable `NODE_VERSION` = `22.23.4`
+3. Add the `PUBLIC_*` variables from the table above.
+4. Deploy. The first URL is `<project>.pages.dev`; the custom domain is added
+   later under **Custom domains** and Cloudflare issues the certificate itself.
 
-### Other hosts
+This route deploys on every push without touching GitHub Actions, which is the
+least moving parts.
 
-`npm run build` produces a plain `dist/` directory. Vercel, Netlify and GitHub
-Pages all work with no adapter.
+### Option B — GitHub Actions (workflow already included)
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds and checks every
+push, and deploys only when deployment is switched on:
+
+| Where | Name | Value |
+| --- | --- | --- |
+| Variable | `CLOUDFLARE_DEPLOY_ENABLED` | `true` — the switch |
+| Variable | `CLOUDFLARE_PROJECT_NAME` | the Pages project name |
+| Secret | `CLOUDFLARE_API_TOKEN` | a token with **Cloudflare Pages: Edit** |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | the account id from the dashboard |
+
+Until `CLOUDFLARE_DEPLOY_ENABLED` is `true` the deploy job is skipped and the
+workflow stays green. That is deliberate: a repository that is not deployed
+anywhere should not show a red cross on every commit.
+
+### Option C — from a laptop
+
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name devsnap
+```
+
+`wrangler` asks for a browser login the first time.
 
 ### Before the first deploy
 

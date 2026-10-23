@@ -1,0 +1,91 @@
+name: CI
+
+# Two jobs: one that always runs and proves the site builds, and one that
+# deploys, which stays disabled until the repository has the Cloudflare
+# variables set. A repository with no deployment configured should not show a
+# red cross on every push.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          PUBLIC_SITE_DOMAIN: ${{ vars.PUBLIC_SITE_DOMAIN }}
+          PUBLIC_ADSENSE_CLIENT: ${{ vars.PUBLIC_ADSENSE_CLIENT }}
+          PUBLIC_ADSENSE_SLOT_BELOW_TOOL: ${{ vars.PUBLIC_ADSENSE_SLOT_BELOW_TOOL }}
+          PUBLIC_ADSENSE_SLOT_IN_ARTICLE: ${{ vars.PUBLIC_ADSENSE_SLOT_IN_ARTICLE }}
+          PUBLIC_ADSENSE_SLOT_FOOTER: ${{ vars.PUBLIC_ADSENSE_SLOT_FOOTER }}
+          PUBLIC_CONTACT_EMAIL: ${{ vars.PUBLIC_CONTACT_EMAIL }}
+          PUBLIC_PUBLISHER_NAME: ${{ vars.PUBLIC_PUBLISHER_NAME }}
+          PUBLIC_AUTHOR_NAME: ${{ vars.PUBLIC_AUTHOR_NAME }}
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Logic tests
+        run: npm run test
+
+      - name: Post-build verifier
+        run: npm run verify
+
+      - name: SEO audit
+        run: npm run seo
+
+      - name: String literals
+        run: npm run lint:strings
+
+      - name: Keep the build for the deploy job
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    needs: check
+    # Nothing happens until this variable is set to "true" in
+    # Settings -> Secrets and variables -> Actions -> Variables.
+    if: github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'devsnap' }} --branch=main
