@@ -35,9 +35,11 @@ npm run dev                # http://localhost:4321
 | `npm run lint:strings` | Finds unbalanced string literals in the content files |
 | `npm run verify` | Post-build audit: links, ad policy, JSON-LD, content density |
 | `npm run check:ads` | Build with a dummy publisher id and audit the ad markup |
+| `npm run bench` | Re-measures the 15 benchmarked operations and rewrites `src/data/benchmarks.json` |
+| `npm run check:consent` | Drives a headless browser with a forced timezone and asserts the advertising-consent behaviour (needs `npm run build:ads` and a preview server) |
 
-`npm run test`, `npm run verify`, `npm run smoke` and `npm run seo` are the four
-that matter before a deploy. Between them they catch the class of bug that is
+`npm run test`, `npm run verify`, `npm run smoke`, `npm run seo` and
+`npm run check:consent` are the five that matter before a deploy. Between them they catch the class of bug that is
 invisible in a diff: a script referencing an element that does not exist, an
 internal link to a page that was never built, a missing ad slot, a tool that
 throws when you actually use it, a duplicate title, or a page that fell below

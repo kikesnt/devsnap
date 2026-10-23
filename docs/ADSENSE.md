@@ -89,6 +89,7 @@ them, so a regression fails the build rather than the account.
 | Never wrap ads in an `<iframe>` | Explicitly prohibited by the invalid traffic policy | Verifier fails the build |
 | Never put ad code in a browser extension or desktop app | "Ads embedded in applications" is a policy violation | Not applicable — this site ships no extension |
 | Never lazy-render an ad slot | Google links `renderMarginPercent` / `fetchMarginPercent` to the begin-to-render change on **17 Feb 2027** | No `loading="lazy"` on ad slots; verifier checks |
+| Reserve the slot's height in CSS | A slot that grows on fill is layout shift, which is a Core Web Vital | `.ad-slot` carries a `min-height` sized to the usual responsive unit |
 | No ads on screens without publisher-content | Inventory-value policy | 404 has no ad markup; verifier checks |
 | No ads on screens with replicated content | Inventory-value policy | Every page has unique prose |
 | Ads must not outnumber publisher content | "Whitespace does not count as content" | Tool pages carry 600+ words; the ad sits inside the article |
