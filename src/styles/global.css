@@ -2011,3 +2011,33 @@ select {
   border-radius: var(--radius);
   color: var(--text-muted);
 }
+
+/* ---------- Tool → guide links ---------- */
+
+.guide-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.guide-links li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.guide-links a {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide-links a:hover {
+  color: var(--accent);
+}
+
+.guide-links span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

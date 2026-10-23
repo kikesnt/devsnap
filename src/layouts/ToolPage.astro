@@ -6,6 +6,7 @@ import ToolTelemetry from '../components/ToolTelemetry.astro';
 import ToolIcon from '../components/ToolIcon.astro';
 import { SITE, AD_SLOTS } from '../config';
 import { resolveRelated } from '../data/tools';
+import { allGuides } from '../data/guides';
 import { truncate } from '../lib/format';
 import benchmarks from '../data/benchmarks.json';
 import type { ToolDef, ModuleId } from '../data/types';
@@ -24,6 +25,21 @@ const related = resolveRelated(tool.related);
  * "related posts" widget.
  */
 const measurements = benchmarks.rows.filter((row) => row.slug === tool.slug);
+
+/*
+ * The inverse of the guides' own `relatedTools`: a tool page that links to
+ * the guide explaining the concept behind it is a better page than one that
+ * only links to other tools, and the guides were previously reachable from
+ * the index and almost nowhere else. Only the guides that name this tool as
+ * one of their two main subjects are listed: JSON Formatter appears in ten
+ * guides as a footnote, and ten links under "goes deeper" is a link dump.
+ */
+const relatedGuides = allGuides
+  .map((guide) => ({ guide, rank: guide.relatedTools.indexOf(tool.slug) }))
+  .filter((entry) => entry.rank >= 0 && entry.rank < 2)
+  .sort((a, b) => a.rank - b.rank)
+  .slice(0, 3)
+  .map((entry) => entry.guide);
 
 const canonicalPath = `/tools/${tool.slug}/`;
 const ogImage = `/og/${tool.slug}.png`;
@@ -256,6 +272,24 @@ const schemas = [webApplication, faqPage, breadcrumbs];
             }
             return null;
           })
+        }
+
+        {
+          relatedGuides.length > 0 && (
+            <section class="hr-top" id="section-guides">
+              <h2>Guides that go deeper</h2>
+              <ul class="guide-links">
+                {relatedGuides.map((guide) => (
+                  <li>
+                    <a href={`/guides/${guide.slug}/`}>{guide.title}</a>
+                    <span>
+                      {guide.readingTime} · {truncate(guide.description, 92)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
         }
 
         <AdSlot slot={AD_SLOTS.inArticle} />
