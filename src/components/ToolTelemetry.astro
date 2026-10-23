@@ -1,0 +1,218 @@
+---
+/**
+ * The integrity chip that sits in the header of every tool.
+ *
+ * It does two things, and both of them are a claim made checkable rather than
+ * a sentence in a paragraph:
+ *
+ * 1. It counts the network requests the page makes after load, excluding the
+ *    advertising hosts, and shows the count. A tool that phoned home would
+ *    light this up in red.
+ * 2. It times the interval between a button press and the resulting change in
+ *    the tool's output, so "instant" has a number next to it.
+ *
+ * The timing is attached to clicks rather than to keystrokes on purpose. Most
+ * tools debounce their live preview by around 120 ms, and timing a debounced
+ * handler would report the debounce, not the algorithm, which would be a
+ * number that looks bad and means nothing.
+ */
+---
+
+<script>
+  interface ToolProofState {
+    requests: number;
+    urls: string[];
+  }
+
+  /** Ad and analytics hosts are not the tool talking to a server. */
+  const IGNORED_HOSTS = [
+    'googlesyndication',
+    'doubleclick',
+    'google-analytics',
+    'googletagmanager',
+    'adservice.google',
+    'fundingchoicesmessages',
+    'pagead2.googlesyndication',
+    'google.com/pagead',
+  ];
+
+  const state: ToolProofState = { requests: 0, urls: [] };
+
+  function ignored(url: string): boolean {
+    return IGNORED_HOSTS.some((host) => url.includes(host));
+  }
+
+  let chip: HTMLElement | null = null;
+  let countLabel: HTMLElement | null = null;
+  let timeLabel: HTMLElement | null = null;
+
+  function render(): void {
+    if (!chip || !countLabel) return;
+    if (state.requests === 0) {
+      chip.dataset.state = 'ok';
+      countLabel.textContent = '0 requests';
+      chip.title =
+        'This page has made no fetch, XHR or beacon requests since it loaded. Everything ran in this tab.';
+      return;
+    }
+    chip.dataset.state = 'warn';
+    countLabel.textContent = `${state.requests} request${state.requests === 1 ? '' : 's'}`;
+    chip.title = `Network requests detected:\n${state.urls.slice(0, 5).join('\n')}`;
+  }
+
+  function record(url: string): void {
+    if (ignored(url)) return;
+    state.requests += 1;
+    state.urls.push(url);
+    render();
+  }
+
+  /**
+   * Wraps the three ways a page can talk to a server. Each wrapper delegates
+   * to the original, so a request behaves exactly as it would have without
+   * the monitor.
+   */
+  function installNetworkMonitor(): void {
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === 'function') {
+      window.fetch = function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+        try {
+          const url =
+            typeof input === 'string'
+              ? input
+              : input instanceof URL
+                ? input.href
+                : (input as Request).url;
+          record(url);
+        } catch {
+          // A request whose URL cannot be read is still forwarded.
+        }
+        return originalFetch.call(this as never, input, init);
+      } as typeof window.fetch;
+    }
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (
+      this: XMLHttpRequest,
+      method: string,
+      url: string | URL,
+      ...rest: unknown[]
+    ) {
+      try {
+        record(String(url));
+      } catch {
+        // Forwarded below either way.
+      }
+      return (originalOpen as unknown as (...args: unknown[]) => void).call(
+        this,
+        method,
+        url,
+        ...rest
+      );
+    } as typeof XMLHttpRequest.prototype.open;
+
+    try {
+      const originalBeacon = navigator.sendBeacon?.bind(navigator);
+      if (originalBeacon) {
+        navigator.sendBeacon = (url: string | URL, data?: BodyInit | null): boolean => {
+          record(String(url));
+          return originalBeacon(url, data);
+        };
+      }
+    } catch {
+      // sendBeacon is not patchable in every browser; the other two still are.
+    }
+  }
+
+  function buildChip(tool: HTMLElement): void {
+    const head = tool.querySelector('.tool-head');
+    if (!head || head.querySelector('.tool-proof')) return;
+
+    chip = document.createElement('span');
+    chip.className = 'tool-proof';
+    chip.dataset.state = 'ok';
+
+    const dot = document.createElement('span');
+    dot.className = 'tool-proof-dot';
+    dot.setAttribute('aria-hidden', 'true');
+
+    countLabel = document.createElement('span');
+    countLabel.className = 'tool-proof-count';
+
+    timeLabel = document.createElement('span');
+    timeLabel.className = 'tool-proof-time';
+    timeLabel.hidden = true;
+
+    chip.append(dot, countLabel, timeLabel);
+    head.append(chip);
+    render();
+  }
+
+  function installTimer(tool: HTMLElement): void {
+    const body = tool.querySelector('.tool-body') ?? tool;
+    let startedAt = 0;
+
+    function report(elapsed: number): void {
+      // A change that took longer than a second is a person, not a function.
+      if (elapsed > 1000) return;
+      if (!timeLabel) return;
+      timeLabel.textContent = elapsed < 1 ? '<1 ms' : `${Math.round(elapsed)} ms`;
+      timeLabel.hidden = false;
+    }
+
+    tool.addEventListener(
+      'click',
+      (event) => {
+        const button = (event.target as HTMLElement | null)?.closest('button');
+        if (!button) return;
+        // Copying the output is not producing it, and timing a clipboard
+        // round-trip would report the permission prompt, not the tool.
+        if (/^copy\b/i.test(button.textContent?.trim() ?? '')) return;
+        startedAt = performance.now();
+        // A MutationObserver cannot see everything: several tools write to a
+        // form control's `value` property or to an element's inline style,
+        // and neither is a DOM mutation, so the observer stays silent and the
+        // chip never appears. This fallback measures the handler itself,
+        // which is the work the visitor actually waited for. When a real
+        // mutation does happen the observer fires first (it runs as a
+        // microtask, before this timeout) and the more precise number wins.
+        window.setTimeout(() => {
+          if (!startedAt) return;
+          const elapsed = performance.now() - startedAt;
+          startedAt = 0;
+          report(elapsed);
+        }, 0);
+      },
+      true
+    );
+
+    const observer = new MutationObserver(() => {
+      if (!startedAt) return;
+      const elapsed = performance.now() - startedAt;
+      startedAt = 0;
+      report(elapsed);
+    });
+
+    observer.observe(body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'value', 'style'],
+    });
+  }
+
+  function start(): void {
+    const tool = document.querySelector<HTMLElement>('[data-tool]');
+    if (!tool) return;
+    installNetworkMonitor();
+    buildChip(tool);
+    installTimer(tool);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+</script>

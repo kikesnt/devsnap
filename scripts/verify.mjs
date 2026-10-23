@@ -88,6 +88,36 @@ for (const file of pages) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 2b. Every page must be reachable from somewhere                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * An orphan page is a page that exists, is in the sitemap, and is linked from
+ * nowhere. It is invisible to a click-through review and it is a real problem
+ * for both crawlers and reviewers: the "how we make money" page was shipped
+ * once with no inbound link at all, and nothing caught it.
+ */
+const linkedPaths = new Set(['/']);
+for (const file of pages) {
+  const html = await readFile(file, 'utf8');
+  for (const match of html.matchAll(/href="(\/[^"#?]*)"/g)) {
+    const href = match[1];
+    if (href.endsWith('/')) linkedPaths.add(href);
+  }
+}
+
+for (const file of pages) {
+  const relativePath = relative(dist, file).replace(/\\/g, '/');
+  if (relativePath === 'index.html' || relativePath === '404.html') continue;
+  const pagePath = '/' + relativePath.replace(/index\.html$/, '');
+  const html = await readFile(file, 'utf8');
+  if (html.includes('name="robots" content="noindex')) continue;
+  if (!linkedPaths.has(pagePath)) {
+    errors.push(`${pagePath}: no page links to it (orphan)`);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* 3. Ad policy invariants                                                   */
 /* -------------------------------------------------------------------------- */
 

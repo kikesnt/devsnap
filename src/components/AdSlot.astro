@@ -39,18 +39,28 @@ const active = ADS_ENABLED;
         data-full-width-responsive="true"
       />
       <script is:inline>
-        // Until the visitor has granted consent, the request is made with
-        // npa=1, which serves non-personalised advertising: the impression
-        // is still measured but no profiling cookie is set.
+        // Two rules, applied per slot rather than per page:
+        //
+        //  - In the EEA, the UK and Switzerland, no ad request is made until
+        //    the visitor has explicitly agreed. The slot is hidden rather
+        //    than filled, because an empty box is worse than no box.
+        //  - Everywhere else the request is made with npa=1 until consent is
+        //    granted, which serves non-personalised advertising: measured,
+        //    but not based on a profile of interests.
         (function () {
-          var granted = window.__adsConsent === 'granted';
-          if (!granted) {
-            var slots = document.querySelectorAll('ins.adsbygoogle');
-            for (var i = 0; i < slots.length; i += 1) {
-              slots[i].setAttribute('data-npa', '1');
-            }
+          var script = document.currentScript;
+          var aside = script ? script.parentElement : null;
+          var ins = aside ? aside.querySelector('ins.adsbygoogle') : null;
+          var consent = window.__adsConsent;
+          var regulated = window.__adsIsEea === true;
+
+          if (regulated && consent !== 'granted') {
+            if (aside) aside.hidden = true;
+            return;
           }
-          (adsbygoogle = window.adsbygoogle || []).push({});
+
+          if (ins && consent !== 'granted') ins.setAttribute('data-npa', '1');
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
         })();
       </script>
     </aside>

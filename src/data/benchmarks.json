@@ -1,0 +1,144 @@
+{
+  "generated": "2026-10-23",
+  "runtime": "Node 26.0.0",
+  "cpu": "Apple M4 Max",
+  "platform": "darwin arm64",
+  "memoryGb": 36,
+  "rows": [
+    {
+      "slug": "case-converter",
+      "label": "Case Converter",
+      "operation": "Convert to camelCase",
+      "inputLabel": "1.0 MB of text",
+      "medianMs": 18.2828,
+      "minMs": 15.5165,
+      "iterations": 9
+    },
+    {
+      "slug": "cron-builder",
+      "label": "Cron Builder",
+      "operation": "Parse and validate an expression",
+      "inputLabel": "5-field expression",
+      "medianMs": 0.0041,
+      "minMs": 0.0028,
+      "iterations": 200
+    },
+    {
+      "slug": "csv-to-json",
+      "label": "CSV to JSON",
+      "operation": "Parse with delimiter detection and type inference",
+      "inputLabel": "10,000 rows × 7 columns",
+      "medianMs": 4.6721,
+      "minMs": 2.8436,
+      "iterations": 9
+    },
+    {
+      "slug": "curl-converter",
+      "label": "cURL Converter",
+      "operation": "Parse a command into a request model",
+      "inputLabel": "One command, 2 headers, JSON body",
+      "medianMs": 0.0029,
+      "minMs": 0.0024,
+      "iterations": 200
+    },
+    {
+      "slug": "hash-generator",
+      "label": "Hash Generator",
+      "operation": "SHA-256 over the input",
+      "inputLabel": "1.0 MB of text",
+      "medianMs": 0.4984,
+      "minMs": 0.4723,
+      "iterations": 9
+    },
+    {
+      "slug": "json-diff",
+      "label": "JSON Diff",
+      "operation": "Compare two documents by structure",
+      "inputLabel": "2,000 records each, 5% changed",
+      "medianMs": 1.0159,
+      "minMs": 0.8423,
+      "iterations": 9
+    },
+    {
+      "slug": "json-formatter",
+      "label": "JSON Formatter",
+      "operation": "Pretty-print with a two-space indent",
+      "inputLabel": "1.0 MB of JSON",
+      "medianMs": 4.0097,
+      "minMs": 3.83,
+      "iterations": 9
+    },
+    {
+      "slug": "json-formatter",
+      "label": "JSON Formatter",
+      "operation": "Minify",
+      "inputLabel": "1.0 MB of JSON",
+      "medianMs": 2.9408,
+      "minMs": 2.7991,
+      "iterations": 9
+    },
+    {
+      "slug": "json-repair",
+      "label": "JSON Repair",
+      "operation": "Repair trailing commas, single quotes and bare keys",
+      "inputLabel": "1.0 MB of broken JSON",
+      "medianMs": 101.9835,
+      "minMs": 88.2184,
+      "iterations": 9
+    },
+    {
+      "slug": "json-schema-generator",
+      "label": "JSON Schema Generator",
+      "operation": "Infer a schema from a sample",
+      "inputLabel": "2,000 records",
+      "medianMs": 0.9537,
+      "minMs": 0.9,
+      "iterations": 9
+    },
+    {
+      "slug": "json-to-csv",
+      "label": "JSON to CSV",
+      "operation": "Flatten and serialise",
+      "inputLabel": "10,000 rows × 7 columns",
+      "medianMs": 8.1171,
+      "minMs": 6.6975,
+      "iterations": 9
+    },
+    {
+      "slug": "markdown-preview",
+      "label": "Markdown Preview",
+      "operation": "Render GitHub-flavoured Markdown to HTML",
+      "inputLabel": "400 sections, ~40 KB",
+      "medianMs": 6.0972,
+      "minMs": 5.8766,
+      "iterations": 9
+    },
+    {
+      "slug": "qr-generator",
+      "label": "QR Code Generator",
+      "operation": "Build the module matrix",
+      "inputLabel": "78-character URL, level M",
+      "medianMs": 1.4485,
+      "minMs": 1.023,
+      "iterations": 9
+    },
+    {
+      "slug": "sql-formatter",
+      "label": "SQL Formatter",
+      "operation": "Format a 120-column query with five joins",
+      "inputLabel": "120 select expressions",
+      "medianMs": 0.5335,
+      "minMs": 0.4703,
+      "iterations": 9
+    },
+    {
+      "slug": "diff-checker",
+      "label": "Text Diff",
+      "operation": "Line diff with word-level highlighting",
+      "inputLabel": "2,000 lines, 2.5% changed",
+      "medianMs": 40.905,
+      "minMs": 38.1058,
+      "iterations": 9
+    }
+  ]
+}

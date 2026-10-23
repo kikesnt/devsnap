@@ -46,12 +46,22 @@ const groups = [
     ],
   },
   {
-    title: 'DevSnap',
+    title: 'This site',
     links: [
+      { href: '/guides/', label: 'Guides' },
+      { href: '/benchmarks/', label: 'Benchmarks' },
       { href: '/about/', label: 'About' },
       { href: '/contact/', label: 'Contact' },
-      { href: '/privacy/', label: 'Privacy Policy' },
-      { href: '/terms/', label: 'Terms of Service' },
+      { href: '/advertising/', label: 'How we make money' },
+      { href: '/editorial-policy/', label: 'Editorial policy' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { href: '/privacy/', label: 'Privacy policy' },
+      { href: '/cookies/', label: 'Cookie policy' },
+      { href: '/terms/', label: 'Terms of service' },
       { href: '/disclaimer/', label: 'Disclaimer' },
     ],
   },
@@ -72,9 +82,16 @@ const groups = [
         </p>
       </div>
       {
-        groups.map((group) => (
-          <div>
-            <h4>{group.title}</h4>
+        /*
+         * Each column is a navigation landmark rather than a heading. Footer
+         * link groups are not sections of the document, and a heading here
+         * skipped from the last content h2 to an h4 on every page.
+         */
+        groups.map((group, index) => (
+          <nav aria-labelledby={`footer-group-${index}`}>
+            <p class="footer-col-title" id={`footer-group-${index}`}>
+              {group.title}
+            </p>
             <ul>
               {group.links.map((link) => (
                 <li>
@@ -82,7 +99,7 @@ const groups = [
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
         ))
       }
     </div>
@@ -95,7 +112,7 @@ const groups = [
         Google.
       </span>
       <span>
-        Built with Astro. Zero uploads, zero accounts.{' '}
+        Built with Astro. <strong>Data sent to servers: 0 bytes.</strong>{' '}
         <a href="/cookies/" data-consent-reset>Cookie choices</a>
       </span>
     </div>

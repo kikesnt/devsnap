@@ -30,8 +30,8 @@ const { tool } = Astro.props;
     </div>
 
     <div class="field mt-2">
-      <label for="cb-preset">Schedule presets</label>
-      <div class="row" id="cb-presets">
+      <span class="field-label" id="cb-preset-label">Schedule presets</span>
+      <div class="row" id="cb-presets" role="group" aria-labelledby="cb-preset-label">
         <button class="btn btn-secondary btn-sm" type="button" data-preset="*/5 * * * *">Every 5 min</button>
         <button class="btn btn-secondary btn-sm" type="button" data-preset="0 * * * *">Hourly</button>
         <button class="btn btn-secondary btn-sm" type="button" data-preset="30 3 * * *">Daily 03:30</button>

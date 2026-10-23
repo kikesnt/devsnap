@@ -151,6 +151,52 @@ for (const file of pages) {
     }
   }
 
+  /* ---- Heading order ---- */
+  /*
+   * A jump from h2 to h4 is not a ranking penalty on its own, but it is a
+   * signal that the outline was assembled visually rather than structurally,
+   * and it makes the page harder to skim with a screen reader. The footer did
+   * exactly this on every page: six h4 column titles after a content h2.
+   */
+  const levels = [...html.matchAll(/<h([1-6])\b/g)].map((match) => Number(match[1]));
+  for (let index = 1; index < levels.length; index += 1) {
+    if (levels[index] - levels[index - 1] > 1) {
+      errors.push(`${label}: heading jumps from h${levels[index - 1]} to h${levels[index]}`);
+      break;
+    }
+  }
+
+  /* ---- Form controls need an accessible name ---- */
+  const labelSpans = [...html.matchAll(/<label\b[\s\S]*?<\/label>/g)].map((match) => [
+    match.index,
+    match.index + match[0].length,
+  ]);
+  const idsInPage = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  for (const match of html.matchAll(/<(input|select|textarea)\b([^>]*)>/g)) {
+    const attrs = match[2];
+    if (/type="hidden"/.test(attrs)) continue;
+    if (/aria-label|aria-labelledby/.test(attrs)) continue;
+    const id = attrs.match(/\bid="([^"]+)"/)?.[1];
+    if (id && html.includes(`for="${id}"`)) continue;
+    const wrapped = labelSpans.some(([start, end]) => match.index > start && match.index < end);
+    if (!wrapped) errors.push(`${label}: ${match[1]}${id ? `#${id}` : ''} has no label`);
+  }
+
+  /* ---- Ids must be unique, labels must point at something ---- */
+  const idCounts = new Map();
+  for (const id of idsInPage) idCounts.set(id, 0);
+  for (const match of html.matchAll(/\bid="([^"]+)"/g)) {
+    idCounts.set(match[1], (idCounts.get(match[1]) ?? 0) + 1);
+  }
+  for (const [id, count] of idCounts) {
+    if (count > 1) errors.push(`${label}: id "${id}" appears ${count} times`);
+  }
+  for (const match of html.matchAll(/<label[^>]*\bfor="([^"]+)"/g)) {
+    if (!idsInPage.has(match[1])) {
+      errors.push(`${label}: <label for="${match[1]}"> points at nothing`);
+    }
+  }
+
   /* ---- Word count ---- */
   const body = html
     .replace(/<script[\s\S]*?<\/script>/g, ' ')
@@ -173,6 +219,40 @@ for (const file of pages) {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Sitemap must match the pages that were built                              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A page missing from the sitemap is invisible to a crawler that only reads
+ * the sitemap; a URL in the sitemap with no page behind it is a soft 404 and
+ * a quality signal against the site. Neither is visible in a browser.
+ */
+const sitemapFiles = (await walk(dist, (f) => /sitemap.*\.xml$/.test(f))).filter(
+  (f) => !f.endsWith('sitemap-index.xml')
+);
+const sitemapUrls = new Set();
+for (const file of sitemapFiles) {
+  const xml = await readFile(file, 'utf8');
+  for (const match of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) sitemapUrls.add(match[1]);
+}
+
+const indexablePages = new Set();
+for (const file of pages) {
+  const html = await readFile(file, 'utf8');
+  if (html.includes('name="robots" content="noindex')) continue;
+  if (file.endsWith('404.html')) continue;
+  indexablePages.add('https://devsnap.cc/' + relative(dist, file).replace(/index\.html$/, ''));
+}
+
+for (const url of indexablePages) {
+  if (!sitemapUrls.has(url)) errors.push(`sitemap: ${url} is indexable but not listed`);
+}
+for (const url of sitemapUrls) {
+  if (!indexablePages.has(url)) errors.push(`sitemap: ${url} is listed but not an indexable page`);
+}
+
+console.log(`Sitemap URLs:       ${sitemapUrls.size}`);
 console.log(`Pages audited:      ${pages.length}`);
 console.log(`Total content:      ${totalWords.toLocaleString('en-US')} words`);
 console.log(`Unique titles:      ${seen.titles.size}`);

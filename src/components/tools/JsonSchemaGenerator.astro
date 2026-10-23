@@ -29,7 +29,13 @@ const { tool } = Astro.props;
     </div>
 
     <div class="tool-actions">
-      <input type="text" id="jsg-title" placeholder="Schema title (optional)" style="max-width:260px" />
+      <input
+        type="text"
+        id="jsg-title"
+        aria-label="Schema title (optional)"
+        placeholder="Schema title (optional)"
+        style="max-width:260px"
+      />
       <button class="btn btn-primary" id="jsg-generate" type="button">Generate schema</button>
       <button class="btn btn-secondary" id="jsg-sample" type="button">Load sample</button>
       <span class="tool-actions-spacer"></span>

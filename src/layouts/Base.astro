@@ -62,6 +62,7 @@ const adsActive = ADS_ENABLED && !hideAds;
     <meta property="og:image" content={`${SITE.domain}${ogImage}`} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${SITE.name} — ${title}`} />
     <meta property="og:locale" content={SITE.locale} />
 
     <meta name="twitter:card" content="summary_large_image" />
@@ -72,6 +73,15 @@ const adsActive = ADS_ENABLED && !hideAds;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="sitemap" href="/sitemap-index.xml" />
+
+    {
+      adsActive && (
+        <>
+          <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin />
+          <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
+        </>
+      )
+    }
 
     <script is:inline>
       // Applies the stored theme before the first paint, so there is no flash
@@ -103,7 +113,26 @@ const adsActive = ADS_ENABLED && !hideAds;
         } catch (error) {
           consent = null;
         }
-        window.__adsConsent = consent ?? 'unknown';
+        // A Do Not Track signal overrides a stored yes: the site says it
+        // honours the header, so it has to.
+        var dnt =
+          navigator.doNotTrack === '1' ||
+          window.doNotTrack === '1' ||
+          navigator.msDoNotTrack === '1';
+        window.__adsDnt = dnt;
+        window.__adsConsent = dnt ? 'denied' : (consent ?? 'unknown');
+
+        // The regulated region has to be decided before a slot is requested,
+        // because the answer changes whether a request happens at all. A
+        // timezone is not a location, but it is the only signal available to
+        // a static page, and over-including is the safe direction.
+        try {
+          var zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+          window.__adsIsEea =
+            zone.indexOf('Europe/') === 0 || zone.indexOf('Atlantic/') === 0;
+        } catch (error) {
+          window.__adsIsEea = true;
+        }
       })();
     </script>
 

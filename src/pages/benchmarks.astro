@@ -1,0 +1,265 @@
+---
+import Base from '../layouts/Base.astro';
+import AdSlot from '../components/AdSlot.astro';
+import { AD_SLOTS, SITE } from '../config';
+import data from '../data/benchmarks.json';
+
+/**
+ * The benchmark page.
+ *
+ * Every number on it comes from scripts/bench.ts, which times the pure
+ * function behind each tool with a deterministic input and writes
+ * src/data/benchmarks.json. Nothing here is typed by hand, which is the only
+ * way a published number stays true after the code changes.
+ */
+
+const rows = [...data.rows].sort((a, b) => a.medianMs - b.medianMs);
+const slowest = rows[rows.length - 1]?.medianMs ?? 1;
+const fastest = rows[0]?.medianMs ?? 1;
+
+/** Microseconds read better than "0.004 ms" for the trivial operations. */
+function formatMs(value: number): string {
+  if (value < 0.1) return `${Math.round(value * 1000)} µs`;
+  if (value < 10) return `${value.toFixed(2)} ms`;
+  return `${Math.round(value)} ms`;
+}
+
+/**
+ * A log scale, because one operation at 100 ms would flatten everything under
+ * 5 ms into an invisible sliver on a linear one. The bar is a comparison aid,
+ * not a value.
+ */
+function barWidth(value: number): number {
+  const ratio = Math.log10(value * 1000 + 1) / Math.log10(slowest * 1000 + 1);
+  return Math.max(4, Math.round(ratio * 100));
+}
+
+const measuredTools = new Set(rows.map((row) => row.slug));
+
+/*
+ * A tool can be measured more than once (pretty-print and minify are two
+ * different operations on the same tool), and a row id has to be unique or
+ * the anchor is ambiguous. The first row keeps the plain slug, so the
+ * `/benchmarks/#slug` links from the tool pages still land on it.
+ */
+const rowIdCounts = new Map<string, number>();
+function rowId(slug: string): string {
+  const seen = rowIdCounts.get(slug) ?? 0;
+  rowIdCounts.set(slug, seen + 1);
+  return seen === 0 ? slug : `${slug}-${seen + 1}`;
+}
+
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Benchmarks — measured, not promised',
+    url: `${SITE.domain}/benchmarks/`,
+    description:
+      'Measured throughput for every DevSnap tool algorithm, with the input size, the machine and the date, and the script to reproduce it.',
+    author: { '@type': 'Person', name: SITE.author },
+    publisher: { '@type': 'Organization', name: SITE.publisher },
+    dateModified: data.generated,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name: 'DevSnap tool benchmarks',
+    description:
+      'Median and best execution time for each DevSnap tool algorithm, measured with deterministic inputs.',
+    url: `${SITE.domain}/benchmarks/`,
+    creator: { '@type': 'Person', name: SITE.author },
+    license: `${SITE.domain}/terms/`,
+    datePublished: data.generated,
+    variableMeasured: 'Execution time in milliseconds',
+    measurementTechnique:
+      'Median of nine runs after one warm-up run, using performance.now(), on the pure function behind each tool.',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE.domain}/` },
+      { '@type': 'ListItem', position: 2, name: 'Benchmarks', item: `${SITE.domain}/benchmarks/` },
+    ],
+  },
+];
+---
+
+<Base
+  title="Benchmarks — Every Tool, Measured"
+  description="Measured execution time for every DevSnap tool algorithm: input size, median and best run, the machine it ran on, and the script to reproduce it."
+  canonicalPath="/benchmarks/"
+  ogImage="/og/benchmarks.png"
+  schemas={schema}
+>
+  <div class="wrap">
+    <ol class="crumbs">
+      <li><a href="/">Home</a></li>
+      <li>Benchmarks</li>
+    </ol>
+
+    <header class="tool-hero">
+      <h1>Measured, not promised</h1>
+      <p class="lede">
+        Every other tool site says "fast". This page publishes the numbers, the input
+        that produced them, the machine they ran on, and the script that regenerates
+        them. If a number here is wrong, it is wrong in a file you can read.
+      </p>
+      <p class="updated-note">
+        Measured {data.generated} · {data.cpu} · {data.runtime} · {data.platform}
+      </p>
+    </header>
+
+    <div class="bench-stats">
+      <div class="bench-stat">
+        <span class="bench-stat-value">{rows.length}</span>
+        <span class="bench-stat-label">operations measured</span>
+      </div>
+      <div class="bench-stat">
+        <span class="bench-stat-value">{formatMs(fastest)}</span>
+        <span class="bench-stat-label">fastest operation</span>
+      </div>
+      <div class="bench-stat">
+        <span class="bench-stat-value">{formatMs(slowest)}</span>
+        <span class="bench-stat-label">slowest operation</span>
+      </div>
+      <div class="bench-stat">
+        <span class="bench-stat-value">0</span>
+        <span class="bench-stat-label">network round trips</span>
+      </div>
+    </div>
+
+    <div class="table-wrap mt-3">
+      <table class="bench-table">
+        <caption class="sr-only">
+          Median and best execution time for each measured tool operation.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Tool</th>
+            <th scope="col">Operation</th>
+            <th scope="col">Input</th>
+            <th scope="col" class="num">Median</th>
+            <th scope="col" class="num">Best</th>
+            <th scope="col" class="num">Runs</th>
+            <th scope="col" class="bench-bar-col">Relative</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((row) => (
+              <tr id={rowId(row.slug)}>
+                <td>
+                  <a href={`/tools/${row.slug}/`}>{row.label}</a>
+                </td>
+                <td class="bench-op">{row.operation}</td>
+                <td class="bench-input">{row.inputLabel}</td>
+                <td class="num">{formatMs(row.medianMs)}</td>
+                <td class="num muted">{formatMs(row.minMs)}</td>
+                <td class="num muted">{row.iterations}</td>
+                <td class="bench-bar-col">
+                  <span class="bench-bar" style={`width:${barWidth(row.medianMs)}%`} aria-hidden="true" />
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="muted small mt-2">
+      Bars use a logarithmic scale so the operations under a millisecond stay visible next to
+      the one at {formatMs(slowest)}. Read them as "this is roughly how much slower", not as
+      an absolute value.
+    </p>
+
+    <AdSlot slot={AD_SLOTS.inArticle} />
+
+    <div class="prose mt-3">
+      <h2>What exactly is being measured</h2>
+      <p>
+        Each row times the pure function that does the work: the parser, the formatter, the
+        diff algorithm, the hash. It does not time the browser, the DOM update, the paint or
+        the time it takes you to move the mouse. That is deliberate. The algorithm is the part
+        that would be slow if the implementation were bad, and it is the only part that can be
+        compared across machines without also comparing screens, extensions and power settings.
+      </p>
+      <p>
+        The measurement is the median of nine runs after one warm-up run. The warm-up matters:
+        without it, the first call absorbs the cost of compiling the function and allocating
+        its data structures, and a nine-run median would mostly report that. The best run is
+        published next to the median because the gap between the two is the honest measure of
+        how noisy the machine was.
+      </p>
+
+      <h2>Why the inputs are generated, not chosen</h2>
+      <p>
+        Every input is produced by a function in the benchmark script, at a fixed size, with
+        the same content on every run. A hand-picked input is a benchmark that can be tuned
+        until it flatters the code; a generated one cannot. The sizes are chosen to be
+        realistic rather than impressive: one megabyte of JSON is a large payload you might
+        actually paste, ten thousand CSV rows is a real export, two thousand diff lines is a
+        real file.
+      </p>
+
+      <h2>What the numbers do not tell you</h2>
+      <ul>
+        <li>
+          <strong>Your machine is not this machine.</strong> A phone will be several times
+          slower and a browser's JavaScript engine differs from Node's. The relative order
+          between two operations is more stable than the absolute numbers.
+        </li>
+        <li>
+          <strong>It does not measure the network.</strong> There is no network step to
+          measure: the tools do not call a server. That absence is the point, and it is why
+          the column of round trips is zero.
+        </li>
+        <li>
+          <strong>It is one run of the script, not a distribution.</strong> There is no
+          confidence interval and no p-value. A benchmark page that pretends to statistics is
+          usually a benchmark page hiding something.
+        </li>
+      </ul>
+
+      <h2>How to reproduce it</h2>
+      <p>
+        The script is in the repository as <code>scripts/bench.ts</code>, and it writes the
+        same <code>src/data/benchmarks.json</code> that this page reads. Run it with{' '}
+        <code>npm run bench</code>. It prints a table and rewrites the file, so a change to an
+        algorithm that makes it slower shows up in the diff of the next commit.
+      </p>
+      <p>
+        That last property is the reason the page exists. A performance claim in a README rots
+        the moment somebody edits the parser. A number that is generated by a script and
+        committed alongside the code cannot rot quietly.
+      </p>
+
+      <h2>Why this matters for a tool that runs locally</h2>
+      <p>
+        When a tool runs on a server, the user cannot tell a slow algorithm from a slow
+        connection, and nobody has an incentive to find out. When it runs in the browser, the
+        latency is yours: every millisecond of a bad algorithm is a millisecond the person
+        waits with the tab frozen. Publishing the number is a way of saying that the
+        difference between {formatMs(fastest)} and {formatMs(slowest)} is a decision somebody
+        made, not an accident.
+      </p>
+      <p>
+        The tools that sit at the slow end are the ones that do the most work per byte. The
+        text diff walks two thousand lines and then diffs the words inside every changed line;
+        JSON Repair runs a dozen recovery passes because a document can be broken in a dozen
+        different ways. Both are still under a tenth of a second, which is the threshold where
+        an interface stops feeling instant.
+      </p>
+    </div>
+
+    <div class="callout mt-3">
+      <p class="callout-title">Every tool on this list runs in your browser</p>
+      <p class="mb-0">
+        There is no upload step, no queue and no server, which is why the numbers above have no
+        network term. <a href="/tools/">Open the toolbox</a> and check for yourself, or read{' '}
+        <a href="/advertising/">how this site makes money</a>.
+      </p>
+    </div>
+  </div>
+</Base>

@@ -20,7 +20,9 @@
     "og": "node scripts/generate-og.mjs",
     "smoke": "node scripts/smoke.mjs",
     "seo": "node scripts/seo-audit.mjs",
-    "lint:strings": "node scripts/lint-strings.mjs"
+    "lint:strings": "node scripts/lint-strings.mjs",
+    "bench": "node scripts/bench.ts",
+    "check:consent": "node scripts/consent-check.mjs"
   },
   "keywords": [
     "developer-tools",

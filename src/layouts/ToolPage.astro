@@ -2,10 +2,12 @@
 import Base from './Base.astro';
 import AdSlot from '../components/AdSlot.astro';
 import ToolWidget from '../components/ToolWidget.astro';
+import ToolTelemetry from '../components/ToolTelemetry.astro';
 import ToolIcon from '../components/ToolIcon.astro';
 import { SITE, AD_SLOTS } from '../config';
 import { resolveRelated } from '../data/tools';
 import { truncate } from '../lib/format';
+import benchmarks from '../data/benchmarks.json';
 import type { ToolDef, ModuleId } from '../data/types';
 
 interface Props {
@@ -14,6 +16,14 @@ interface Props {
 
 const { tool } = Astro.props;
 const related = resolveRelated(tool.related);
+
+/**
+ * The measured operations for this tool, if it has any. Linking from the tool
+ * to the numbers, and from the numbers back, is the cheapest internal link
+ * pair on the site: it is genuinely useful in both directions and it is not a
+ * "related posts" widget.
+ */
+const measurements = benchmarks.rows.filter((row) => row.slug === tool.slug);
 
 const canonicalPath = `/tools/${tool.slug}/`;
 const ogImage = `/og/${tool.slug}.png`;
@@ -98,7 +108,27 @@ const schemas = [webApplication, faqPage, breadcrumbs];
               return (
                 <div class="mt-3">
                   <ToolWidget tool={tool} />
+                  {measurements.length > 0 && (
+                    <p class="bench-note">
+                      Measured on {benchmarks.cpu}:{' '}
+                      {measurements.map((row, index) => (
+                        <>
+                          {index > 0 && ' · '}
+                          <strong>
+                            {row.medianMs < 0.1
+                              ? `${Math.round(row.medianMs * 1000)} µs`
+                              : row.medianMs < 10
+                                ? `${row.medianMs.toFixed(2)} ms`
+                                : `${Math.round(row.medianMs)} ms`}
+                          </strong>{' '}
+                          {row.operation.toLowerCase()} ({row.inputLabel})
+                        </>
+                      ))}{' '}
+                      <a href={`/benchmarks/#${tool.slug}`}>See the benchmarks</a>
+                    </p>
+                  )}
                   <AdSlot slot={AD_SLOTS.belowTool} />
+                  <ToolTelemetry />
                 </div>
               );
             }

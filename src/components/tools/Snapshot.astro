@@ -22,12 +22,12 @@ const { tool } = Astro.props;
 
     <div class="tool-actions">
       <select id="sn-theme" aria-label="Theme"></select>
-      <input type="color" id="sn-accent" value="#7c8cff" style="width:46px;height:38px;padding:2px" title="Accent colour" />
-      <input type="number" id="sn-font" value="14" min="9" max="28" style="width:72px" title="Font size" />
+      <input type="color" id="sn-accent" value="#7c8cff" aria-label="Accent colour" style="width:46px;height:38px;padding:2px" />
+      <input type="number" id="sn-font" value="14" min="9" max="28" aria-label="Font size in pixels" style="width:72px" />
       <label class="chip" style="gap:6px;cursor:pointer">
         <input type="checkbox" id="sn-chrome" style="width:auto" checked /> Window chrome
       </label>
-      <input type="text" id="sn-title" placeholder="Title bar text" style="max-width:220px" />
+      <input type="text" id="sn-title" aria-label="Title bar text" placeholder="Title bar text" style="max-width:220px" />
       <button class="btn btn-primary" id="sn-render" type="button">Render</button>
       <button class="btn btn-secondary" id="sn-sample" type="button">Load sample</button>
       <span class="tool-actions-spacer"></span>

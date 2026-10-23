@@ -1,0 +1,49 @@
+# Headers for Cloudflare Pages.
+#
+# Two things matter here and nothing else does: the HTML must always be
+# revalidated so a deploy is visible immediately, and the hashed assets must
+# never be revalidated because their name changes when their content does.
+# Getting these backwards is the classic static-site bug: a visitor keeps an
+# old HTML file that points at assets which no longer exist.
+#
+# A Content-Security-Policy is deliberately absent. AdSense loads from a long
+# and changing list of hosts, and a CSP that is slightly too strict fails
+# silently: the slot renders, no ad appears, and the only symptom is revenue.
+# The headers below are the ones that cannot break the advertising.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Astro emits content-hashed filenames here, so the URL changes with the
+# content and a year-long cache is safe.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Open Graph cards and the icons change rarely and are not on the critical
+# path, so a week is a reasonable compromise.
+/og/*
+  Cache-Control: public, max-age=604800
+
+/favicon.svg
+  Cache-Control: public, max-age=604800
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=604800
+
+# Crawler files should not be cached for long: a mistake in ads.txt or
+# robots.txt needs to be fixable within the hour.
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/ads.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap-index.xml
+  Cache-Control: public, max-age=3600
+
+/sitemap-0.xml
+  Cache-Control: public, max-age=3600

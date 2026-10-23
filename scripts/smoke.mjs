@@ -159,6 +159,12 @@ const pages = (await listPages(dist)).sort();
 
 const failures = [];
 let checked = 0;
+let toolPages = 0;
+let pagesWithChip = 0;
+let pagesWithTiming = 0;
+const leakedRequests = [];
+const missingTiming = [];
+const inputDriven = [];
 
 for (const path of pages) {
   if (path === '/404') continue;
@@ -172,16 +178,64 @@ for (const path of pages) {
   await send('Page.navigate', { url });
   await sleep(900);
 
-  // Click the primary action of the tool, and the load-sample button.
-  await evaluate(`(() => {
+  // Click the primary action of the tool, and the load-sample button. A few
+  // tools have no primary action at all because they are driven by their
+  // inputs (a live preview), and the chip deliberately does not time
+  // keystrokes. For those, click a filter button if there is one so the
+  // timer has something honest to measure.
+  const action = await evaluate(`(() => {
     const buttons = [...document.querySelectorAll('.tool button')];
+    const isCopy = (b) => /^copy\\b/i.test((b.textContent || '').trim());
     const primary = buttons.find((b) => b.classList.contains('btn-primary'));
-    if (primary) primary.click();
+    const filter = buttons.find(
+      (b) => !isCopy(b) && !b.classList.contains('btn-primary') && b.getAttribute('aria-pressed') === 'false'
+    );
+    const target = primary || filter;
+    if (target) target.click();
     const sample = buttons.find((b) => /sample/i.test(b.textContent || ''));
     if (sample) sample.click();
-    return buttons.length;
+    return { buttons: buttons.length, clicked: Boolean(target) };
   })()`);
   await sleep(700);
+
+  /*
+   * The integrity chip is a claim the site makes in prose, so it gets a test
+   * like any other claim. Three things are checked: it exists on every tool
+   * page, it reports a timing after an action, and it never reports a network
+   * request. That last one is the regression guard for the whole "nothing is
+   * uploaded" promise: a tool that starts phoning home fails the build.
+   */
+  const chip = await evaluate(`(() => {
+    if (!document.querySelector('.tool')) return null;
+    const element = document.querySelector('.tool-proof');
+    if (!element) return { missing: true };
+    const time = element.querySelector('.tool-proof-time');
+    return {
+      count: element.querySelector('.tool-proof-count')?.textContent ?? '',
+      time: time && !time.hidden ? time.textContent : '',
+      state: element.dataset.state ?? '',
+    };
+  })()`);
+
+  if (chip) {
+    toolPages += 1;
+    if (chip.missing) {
+      failures.push({ path, problems: ['tool page has no integrity chip'] });
+    } else {
+      pagesWithChip += 1;
+      if (chip.time) {
+        pagesWithTiming += 1;
+      } else if (action.clicked) {
+        missingTiming.push(path);
+      } else {
+        // Nothing to press: the tool reacts to typing, which is not timed.
+        inputDriven.push(path);
+      }
+      if (chip.state === 'warn') {
+        leakedRequests.push({ path, count: chip.count });
+      }
+    }
+  }
 
   checked += 1;
 
@@ -195,6 +249,26 @@ socket.close();
 child.kill();
 
 console.log(`Pages exercised: ${checked}`);
+console.log(`Tool pages with the integrity chip: ${pagesWithChip}/${toolPages}`);
+console.log(
+  `Tool pages that reported a timing: ${pagesWithTiming}/${toolPages - inputDriven.length}` +
+    (inputDriven.length > 0 ? ` (${inputDriven.length} input-only tool(s) not timed by design)` : '')
+);
+if (missingTiming.length > 0) {
+  console.log(`  no timing after an action on: ${missingTiming.join(', ')}`);
+  failures.push({ path: '(timing)', problems: missingTiming.map((p) => `${p}: no timing after a click`) });
+}
+if (inputDriven.length > 0) {
+  console.log(`  input-only: ${inputDriven.join(', ')}`);
+}
+
+if (leakedRequests.length > 0) {
+  console.log(`\n${leakedRequests.length} tool page(s) made a network request:\n`);
+  for (const leak of leakedRequests) {
+    console.log(`  x ${leak.path}: ${leak.count}`);
+  }
+  failures.push({ path: '(integrity)', problems: ['a tool made a network request'] });
+}
 if (failures.length > 0) {
   console.log(`\n${failures.length} page(s) with runtime errors:\n`);
   for (const failure of failures) {

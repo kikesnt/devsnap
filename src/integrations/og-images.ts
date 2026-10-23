@@ -106,6 +106,18 @@ export function ogImages(): AstroIntegration {
       kicker: 'Guide',
       accent: '#0ea5e9',
     })),
+    {
+      slug: 'benchmarks',
+      title: 'Every tool, measured',
+      kicker: 'Benchmarks',
+      accent: '#0f766e',
+    },
+    {
+      slug: 'guides',
+      title: 'Guides for the concepts behind the tools',
+      kicker: 'Guides',
+      accent: '#0ea5e9',
+    },
     { slug: 'default', title: SITE.tagline, kicker: SITE.name, accent: '#4f46e5' },
   ];
 

@@ -113,24 +113,48 @@ const schema = {
 
       <h2>3. Consent</h2>
       <p>
-        When you first arrive, a banner asks whether you accept advertising
-        cookies. Until you answer, the site serves <strong>non-personalised</strong>
-        ads: they are still measured, but they are not based on a profile of
-        your interests and they do not use the cookies listed above.
+        The first time you arrive, a banner asks whether you accept advertising
+        cookies. Until you answer, the answer is treated as <strong>no</strong>,
+        and the site behaves differently depending on where you are.
       </p>
       <p>
-        If you accept, the site reloads once and advertising becomes
-        personalised. If you reject, the banner does not come back and the ads
-        stay non-personalised. You can change your answer at any time using the
-        "Cookie choices" link in the footer.
+        Outside the European Economic Area, the United Kingdom and Switzerland,
+        the ad slots load with <strong>non-personalised</strong> advertising: the
+        impression is measured, but it is not based on a profile of your
+        interests and the profiling cookies in the table above are not set.
       </p>
       <p>
-        Visitors in the European Economic Area, the United Kingdom and
-        Switzerland are asked for explicit consent before any personalised
-        advertising cookie is set, which is the requirement under GDPR and the
-        ePrivacy rules.
+        Inside those regions, <strong>no advertising request is made at all</strong>
+        until you press Accept. The slot is withheld rather than filled, because
+        the ePrivacy rules require consent before an advertising cookie is
+        written, and "we only set the non-profiling ones" is not an exception
+        that exists in the text.
+      </p>
+      <p>
+        If you accept, the page reloads once and advertising becomes
+        personalised. If you reject, the banner does not come back and the site
+        keeps working exactly as before. You can change your answer at any time
+        using the "Cookie choices" link in the footer.
+      </p>
+      <p>
+        Google requires a consent platform certified under its EU user consent
+        policy for personalised advertising in those regions. When the site
+        serves advertising, that platform (Google's own, Funding Choices) takes
+        over the prompt and this site's banner steps aside, so you are never
+        asked the same question twice.
       </p>
 
+      <h2>3a. How the region is decided</h2>
+      <p>
+        Without a server there is no IP address to look up, so the region is
+        inferred from your browser's timezone. The test treats every
+        <code>Europe/*</code> and <code>Atlantic/*</code> zone as the regulated
+        region. That deliberately over-includes a few countries outside the
+        EEA, which means some visitors are asked for consent when the law would
+        not require it. The alternative — under-including a country — would mean
+        setting cookies without consent, so the error goes in the safe
+        direction.
+      </p>
       <h2>4. How to control cookies</h2>
       <ul>
         <li>Use the "Cookie choices" link in the footer to change your answer.</li>
@@ -142,8 +166,10 @@ const schema = {
 
       <h2>5. Do Not Track</h2>
       <p>
-        Some browsers send a Do Not Track header. We honour it: if it is
-        present, the site does not request personalised advertising.
+        Some browsers send a Do Not Track header. The site honours it: when the
+        header is present, the advertising is never personalised, even if you
+        previously pressed Accept. You do not have to trust that sentence — the
+        check is in the page source and it runs before any ad slot is requested.
       </p>
 
       <h2>6. Third-party embeds</h2>

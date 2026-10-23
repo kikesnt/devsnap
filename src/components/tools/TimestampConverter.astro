@@ -34,9 +34,9 @@ const { tool } = Astro.props;
       <button class="btn btn-ghost" id="tc-copy" type="button">Copy ISO</button>
     </div>
 
-    <div class="table-wrap mt-3">
+    <div class="table-wrap mt-3 ts-table">
       <table>
-        <thead><tr><th style="width:230px">Representation</th><th>Value</th></tr></thead>
+        <thead><tr><th class="ts-key">Representation</th><th>Value</th></tr></thead>
         <tbody id="tc-rows"></tbody>
       </table>
     </div>
@@ -139,6 +139,12 @@ const { tool } = Astro.props;
     clearStatus(status);
     render(date);
   }
+
+  // Opening on an empty table makes a working converter look broken. The
+  // current time is also the most common thing anyone converts, so it is the
+  // sensible starting value.
+  if (input && !input.value) input.value = String(Math.floor(Date.now() / 1000));
+  convert();
 
   convertButton?.addEventListener('click', convert);
   unitSelect?.addEventListener('change', convert);

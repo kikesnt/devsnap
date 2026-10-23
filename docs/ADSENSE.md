@@ -94,6 +94,43 @@ them, so a regression fails the build rather than the account.
 | Never ask for clicks | "Encouraging clicks" | No such copy anywhere on the site |
 | ads.txt at the domain root | Seller verification | Generated from the build at [`src/pages/ads.txt.ts`](../src/pages/ads.txt.ts) |
 
+### Consent, and the one thing that must change before EEA traffic
+
+The site ships its own consent banner, and the behaviour is checked by
+`npm run check:consent` (11 assertions over a forced timezone):
+
+| Situation | What happens |
+| --- | --- |
+| EEA / UK / CH, no answer | No ad request at all. The slot is withheld, not filled. |
+| EEA / UK / CH, rejected | Same. |
+| EEA / UK / CH, accepted | Slots load with personalised advertising. |
+| Rest of the world, no answer | Slots load with `npa=1`, non-personalised. |
+| Do Not Track present | Never personalised, even with a stored "accept". |
+
+That is the correct behaviour, and it is **not sufficient on its own**. Google
+requires a consent management platform certified under its EU user consent
+policy for personalised advertising in those regions, and a hand-written banner
+is not certified. The supported path is Google's own, which is free with an
+AdSense account:
+
+1. AdSense → **Privacy & messaging** → **GDPR message** → create a message.
+2. Set it to cover the EEA, the UK and Switzerland.
+3. Publish it. Funding Choices then injects its own prompt through the AdSense
+   tag, and this site's banner detects `window.googlefc` and steps aside so the
+   visitor is not asked twice.
+
+Until that message is published, the safe configuration for a site with any
+European traffic is to leave `PUBLIC_ADSENSE_CLIENT` unset: no ads, no
+consent question, no policy exposure.
+
+### What the site deliberately does not do
+
+- It does not claim to be a CMP.
+- It does not use the IAB TCF stub. A fake `__tcfapi` that returns a fabricated
+  consent string is worse than no stub, because every downstream vendor would
+  trust it.
+- It does not infer consent from continued browsing. Silence is "no".
+
 ---
 
 ## 3. After approval

@@ -19,15 +19,51 @@ const relatedTools = guide.relatedTools
   .map((slug) => toolBySlug.get(slug))
   .filter((tool) => tool !== undefined);
 
+/*
+ * A named author is the difference between an article and an anonymous page,
+ * and it is the same name the byline shows. An Organization author would be
+ * technically valid and would say nothing.
+ */
 const articleSchema = {
   '@context': 'https://schema.org',
   '@type': 'Article',
   headline: guide.title,
   description: guide.description,
+  datePublished: guide.updated,
   dateModified: guide.updated,
-  author: { '@type': 'Organization', name: SITE.publisher },
-  publisher: { '@type': 'Organization', name: SITE.publisher },
+  author: {
+    '@type': 'Person',
+    name: SITE.author,
+    url: `${SITE.domain}/about/`,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: SITE.publisher,
+    url: SITE.domain,
+    logo: {
+      '@type': 'ImageObject',
+      url: `${SITE.domain}/apple-touch-icon.png`,
+    },
+  },
+  image: `${SITE.domain}/og/guides/${guide.slug}.png`,
   mainEntityOfPage: `${SITE.domain}/guides/${guide.slug}/`,
+};
+
+/* The visible crumbs and the structured crumbs are generated from the same
+   three values, so they cannot drift apart. */
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE.domain}/` },
+    { '@type': 'ListItem', position: 2, name: 'Guides', item: `${SITE.domain}/guides/` },
+    {
+      '@type': 'ListItem',
+      position: 3,
+      name: guide.title,
+      item: `${SITE.domain}/guides/${guide.slug}/`,
+    },
+  ],
 };
 ---
 
@@ -37,7 +73,7 @@ const articleSchema = {
   canonicalPath={`/guides/${guide.slug}/`}
   ogImage={`/og/guides/${guide.slug}.png`}
   ogType="article"
-  schemas={articleSchema}
+  schemas={[articleSchema, breadcrumbSchema]}
 >
   <div class="wrap">
     <ol class="crumbs">

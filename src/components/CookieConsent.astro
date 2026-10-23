@@ -2,92 +2,99 @@
 /**
  * Advertising consent banner.
  *
- * Until the visitor answers, the ad slots are served as non-personalised
- * ads: they still measure, but they do not set the cookies that build a
- * profile of interests. Accepting reloads the page once so every slot is
- * requested with personalised advertising.
+ * The banner is rendered on every page and hidden by default, so the
+ * "Cookie choices" link in the footer has something to reopen even in a build
+ * with advertising switched off. It is only shown automatically when the build
+ * actually serves ads and the visitor has not answered yet.
  *
- * Google requires a certified consent management platform for advertising in
- * the EEA, the UK and Switzerland. The banner here is a reasonable starting
- * point, but Funding Choices (free with an AdSense account) is the compliant
- * option once the account exists.
+ * If Google's certified consent platform (Funding Choices) is present, this
+ * banner steps aside: two prompts asking the same question is worse than one,
+ * and the certified one is the one that satisfies the EU user consent policy.
  */
 import { ADS_ENABLED } from '../config';
 ---
 
-{
-  ADS_ENABLED && (
-    <div class="consent" id="consent-banner" role="dialog" aria-live="polite" aria-label="Cookie choices" hidden>
-      <div class="consent-inner">
-        <div class="consent-text">
-          <strong>We use cookies for advertising.</strong>
-          <p>
-            The tools on this site set none, but the ads that fund it do. Until you
-            choose, ads are served non-personalised. Read the{' '}
-            <a href="/cookies/">Cookie Policy</a>.
-          </p>
-        </div>
-        <div class="consent-actions">
-          <button class="btn btn-secondary btn-sm" id="consent-reject" type="button">Reject</button>
-          <button class="btn btn-primary btn-sm" id="consent-accept" type="button">Accept</button>
-        </div>
-      </div>
+<div
+  class="consent"
+  id="consent-banner"
+  role="region"
+  aria-label="Cookie choices"
+  data-ads={ADS_ENABLED ? 'true' : 'false'}
+  hidden
+>
+  <div class="consent-inner">
+    <div class="consent-text">
+      <strong>Cookies for advertising</strong>
+      <p>
+        The tools set no cookies. The advertising that funds the site uses them, and it
+        stays non-personalised unless you accept. Rejecting changes nothing about the
+        tools. Read the <a href="/cookies/">Cookie Policy</a>.
+      </p>
     </div>
-  )
-}
+    <div class="consent-actions">
+      <button class="btn btn-secondary btn-sm" id="consent-reject" type="button">Reject</button>
+      <button class="btn btn-primary btn-sm" id="consent-accept" type="button">Accept</button>
+    </div>
+  </div>
+</div>
 
 <script>
-  const CONSENT_KEY = 'devsnap-consent';
-
-  function readConsent(): 'granted' | 'denied' | null {
-    try {
-      const value = localStorage.getItem(CONSENT_KEY);
-      return value === 'granted' || value === 'denied' ? value : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function writeConsent(value: 'granted' | 'denied') {
-    try {
-      localStorage.setItem(CONSENT_KEY, value);
-      // A first-party cookie as well, so the choice is available server-side.
-      document.cookie = `${CONSENT_KEY}=${value}; path=/; max-age=31536000; SameSite=Lax`;
-    } catch {
-      // The banner still works for this page view.
-    }
-  }
-
-  // Tells the ad slot whether to request personalised advertising.
-  (window as Window & { __adsConsent?: string }).__adsConsent = readConsent() ?? 'unknown';
+  import {
+    readConsent,
+    writeConsent,
+    isRegulatedRegion,
+    mayRequestAds,
+  } from '../lib/consent';
 
   const banner = document.getElementById('consent-banner');
   const acceptButton = document.getElementById('consent-accept');
   const rejectButton = document.getElementById('consent-reject');
 
-  if (banner && !readConsent()) {
+  const adsEnabled = banner?.dataset.ads === 'true';
+  const googleCmp = () =>
+    Boolean((window as Window & { googlefc?: unknown }).googlefc);
+
+  function show(): void {
+    if (!banner) return;
     banner.hidden = false;
+  }
+
+  function hide(): void {
+    if (banner) banner.hidden = true;
+  }
+
+  if (banner && adsEnabled && !readConsent() && !googleCmp()) {
+    show();
   }
 
   acceptButton?.addEventListener('click', () => {
     writeConsent('granted');
-    (window as Window & { __adsConsent?: string }).__adsConsent = 'granted';
+    hide();
     // Reload so every slot is requested again with personalised advertising.
-    window.location.reload();
+    if (adsEnabled) window.location.reload();
   });
 
   rejectButton?.addEventListener('click', () => {
     writeConsent('denied');
-    (window as Window & { __adsConsent?: string }).__adsConsent = 'denied';
-    if (banner) banner.hidden = true;
+    hide();
+    // In the regulated region the slots were withheld; they stay withheld.
+    if (adsEnabled && !isRegulatedRegion()) window.location.reload();
   });
 
-  // The footer link reopens the banner so the choice can be changed.
+  // The footer link reopens the banner so the choice can be changed, in every
+  // build, whether or not this build serves ads.
   document.querySelectorAll('[data-consent-reset]').forEach((element) => {
     element.addEventListener('click', (event) => {
       event.preventDefault();
-      writeConsent('denied');
-      if (banner) banner.hidden = false;
+      show();
     });
   });
+
+  // Funding Choices loads after the page, so the banner is re-checked once it
+  // is known to be present.
+  if (adsEnabled) {
+    window.setTimeout(() => {
+      if (googleCmp() && !mayRequestAds()) hide();
+    }, 1500);
+  }
 </script>

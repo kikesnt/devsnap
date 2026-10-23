@@ -189,7 +189,9 @@
         window.addEventListener('pointermove', onPointerMove, { passive: true });
       }
 
-      const clock = new THREE.Clock();
+      // performance.now() rather than THREE.Clock: Clock was deprecated in
+      // favour of Timer, and a monotonic clock is all this scene needs.
+      const startedAt = performance.now();
       let visible = true;
       let inView = true;
 
@@ -228,7 +230,7 @@
         const loop = () => {
           requestAnimationFrame(loop);
           if (!visible || !inView) return;
-          renderFrame(clock.getElapsedTime());
+          renderFrame((performance.now() - startedAt) / 1000);
         };
         loop();
       }

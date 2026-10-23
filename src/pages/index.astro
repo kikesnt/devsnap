@@ -6,6 +6,7 @@ import AdSlot from '../components/AdSlot.astro';
 import { SITE, AD_SLOTS } from '../config';
 import { tools, toolsByCategory } from '../data/tools';
 import { allGuides as guides } from '../data/guides';
+import benchmarks from '../data/benchmarks.json';
 import { truncate } from '../lib/format';
 
 const grouped = toolsByCategory();
@@ -99,7 +100,7 @@ const toolListSchema = {
     <div class="wrap">
       <div class="section-head">
         <h2>Start here</h2>
-        <p>The six tools that get the most use, and the one that gets shared the most.</p>
+        <p>The tools people reach for first, and the one that gets shared the most.</p>
       </div>
       <div class="card-grid">
         {
@@ -129,6 +130,22 @@ const toolListSchema = {
           page load and nothing else.
         </p>
       </div>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <a class="proof-strip" href="/benchmarks/">
+        <span class="proof-strip-label">Benchmarks</span>
+        <span class="proof-strip-body">
+          <strong>Measured, not promised.</strong> Every algorithm behind these tools is
+          timed on a real machine and the numbers are published: input size, median, best
+          run, and the script that regenerates the table. The slowest operation on the site
+          is a {Math.round(Math.max(...benchmarks.rows.map((row) => row.medianMs)))} ms
+          text diff over two thousand lines.
+        </span>
+        <span class="proof-strip-arrow" aria-hidden="true">→</span>
+      </a>
     </div>
   </section>
 
