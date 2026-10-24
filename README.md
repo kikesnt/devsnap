@@ -8,6 +8,10 @@ cookie. Built to be monetised with AdSense and to be launched with a viral hook
 (the [Code Snapshot](src/components/tools/Snapshot.astro) tool turns any snippet
 into a shareable image).
 
+**Live at <https://devsnap.cc>** — Cloudflare Pages, project `devsnap`, direct
+upload from `dist/`. The DNS records, the `www` redirect and the two hosting
+gotchas are recorded in [`docs/LAUNCH.md`](docs/LAUNCH.md#6-deployment-record).
+
 ---
 
 ## Quick start

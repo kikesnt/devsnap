@@ -53,11 +53,12 @@ property.
 
 ### Week 0 — infrastructure
 
-- [ ] Domain registered, DNS pointing at Cloudflare Pages.
-- [ ] `PUBLIC_SITE_DOMAIN` set to the real domain. Canonicals, sitemap and OG
+- [x] Domain registered, DNS pointing at Cloudflare Pages. See the deployment
+      record at the end of this file for the exact records.
+- [x] `PUBLIC_SITE_DOMAIN` set to the real domain. Canonicals, sitemap and OG
       image URLs are all wrong otherwise.
 - [ ] Search Console verified, `sitemap-index.xml` submitted.
-- [ ] `ads.txt` serving from the root, even before the AdSense account exists
+- [x] `ads.txt` serving from the root, even before the AdSense account exists
       (it is generated from the build).
 - [ ] **WAF rules are permissive for `Mediapartners-Google` and
       `AdsBot-Google`.** A bot-protection rule that blocks the ad crawlers
@@ -225,3 +226,34 @@ read:
 The last one matters most. A site whose traffic is 80% from one Reddit post has
 a fragile asset, and the fix is the guides, which are the only part of this
 project that earns links slowly and permanently.
+
+---
+
+## 6. Deployment record
+
+What is actually live, so nobody has to rediscover it from the dashboard.
+
+| Thing | Value |
+| --- | --- |
+| Production URL | <https://devsnap.cc> |
+| Host | Cloudflare Pages project `devsnap`, production branch `main` |
+| Pages subdomain | `devsnap-4k1.pages.dev` |
+| Direct upload | `npx wrangler pages deploy dist --project-name devsnap --branch main` |
+| Zone | `devsnap.cc`, plan Free, nameservers `anton`/`edna.ns.cloudflare.com` |
+| Apex DNS | `CNAME devsnap.cc → devsnap-4k1.pages.dev`, proxied |
+| `www` DNS | `CNAME www.devsnap.cc → devsnap-4k1.pages.dev`, proxied |
+| `www` behaviour | Redirect Rule "www to apex": `https://www.devsnap.cc/*` → `https://devsnap.cc/${1}`, 301, path and query preserved |
+| Certificates | Google Trust Services WE1, one per hostname, auto-renewed |
+| HTTP | "Always Use HTTPS" on, so port 80 is a 301 to 443 |
+| HSTS | `max-age=31536000` (no `includeSubDomains`, no preload, so it is reversible) |
+| Email | Cloudflare Email Routing: MX `route1..3.mx.cloudflare.net`, SPF, DKIM, no A record on the apex to conflict with the Pages CNAME |
+
+Two details that bit during the setup and are worth remembering:
+
+- Cloudflare only creates the Pages CNAME automatically when the API call that
+  adds the custom domain has DNS edit rights. With an OAuth token that has
+  `pages:write` but no `zone:write`, the domain sits in `pending` forever and
+  the records have to be added by hand.
+- `_headers` rules are merged, not replaced. A `Cache-Control` in `/*` plus one
+  in `/_astro/*` produces a single response with two values. The fix is a
+  `! Cache-Control` detach line in the narrower rule.

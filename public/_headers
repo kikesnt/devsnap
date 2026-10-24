@@ -21,6 +21,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+  Strict-Transport-Security: max-age=31536000
   Cache-Control: public, max-age=0, must-revalidate
 
 # Astro emits content-hashed filenames here, so the URL changes with the
