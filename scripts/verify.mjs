@@ -9,6 +9,7 @@
  * Run with: npm run verify
  */
 import { readFile, readdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -245,6 +246,37 @@ if (thinPages.length > 0) {
   warnings.push(
     `Tool pages below the 400-word target:\n    ${thinPages.join('\n    ')}`
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* 5b. Icon set                                                               */
+/* -------------------------------------------------------------------------- */
+
+// Four different consumers fetch four different files: the tab reads the SVG
+// or the ICO, iOS reads the 180px square, Android reads the manifest and
+// Google's favicon crawler asks for /favicon.ico first. A missing one is
+// invisible in the build log and shows up as a default globe in the browser, so
+// the build fails instead.
+const REQUIRED_ICONS = [
+  'favicon.ico',
+  'favicon.svg',
+  'favicon-32.png',
+  'favicon-192.png',
+  'favicon-512.png',
+  'apple-touch-icon.png',
+  'site.webmanifest',
+];
+for (const icon of REQUIRED_ICONS) {
+  if (!existsSync(join(dist, icon))) {
+    errors.push(`missing ${icon}`);
+  }
+}
+
+const homeHtml = await readFile(join(dist, 'index.html'), 'utf8');
+for (const href of ['/favicon.ico', '/favicon.svg', '/apple-touch-icon.png', '/site.webmanifest']) {
+  if (!homeHtml.includes(href)) {
+    errors.push(`index.html does not reference ${href}`);
+  }
 }
 
 /* -------------------------------------------------------------------------- */

@@ -1,5 +1,5 @@
 import type { AstroIntegration } from 'astro';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import sharp from 'sharp';
 import { tools } from '../data/tools';
@@ -49,6 +49,39 @@ function wrapText(text: string, maxChars: number): string[] {
   }
   if (current) lines.push(current);
   return lines.slice(0, 4);
+}
+
+/**
+ * Packs PNG frames into a single `.ico` file.
+ *
+ * Windows, Safari and every client that requests `/favicon.ico` without reading
+ * the HTML need this file to exist; without it the tab shows the default globe
+ * no matter how good the SVG is. `sharp` cannot write ICO, but the format is a
+ * 6-byte header, one 16-byte directory entry per image, and the PNG payloads
+ * concatenated, so writing it by hand is shorter than adding a dependency.
+ */
+function buildIco(images: Array<{ size: number; png: Buffer }>): Buffer {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // 1 = icon
+  header.writeUInt16LE(images.length, 4);
+
+  let offset = 6 + 16 * images.length;
+  const directory = images.map(({ size, png }) => {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(size >= 256 ? 0 : size, 0); // width, 0 means 256
+    entry.writeUInt8(size >= 256 ? 0 : size, 1); // height
+    entry.writeUInt8(0, 2); // palette size
+    entry.writeUInt8(0, 3); // reserved
+    entry.writeUInt16LE(1, 4); // colour planes
+    entry.writeUInt16LE(32, 6); // bits per pixel
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return entry;
+  });
+
+  return Buffer.concat([header, ...directory, ...images.map((image) => image.png)]);
 }
 
 function buildSvg({ title, kicker, accent }: OgEntry): string {
@@ -150,6 +183,54 @@ export function ogImages(): AstroIntegration {
         </svg>`;
         const iconBuffer = await sharp(Buffer.from(icon)).png().toBuffer();
         await writeFile(join(dir.pathname, 'apple-touch-icon.png'), iconBuffer);
+
+        // The full icon set. Four different consumers ask for four different
+        // files: the browser tab reads the SVG or the ICO, iOS reads the opaque
+        // 180px square, Android reads the manifest, and Google's favicon crawler
+        // looks for /favicon.ico first. Shipping only the SVG is the usual
+        // reason a site has "no favicon" in one place and a correct one in
+        // another.
+        const faviconSvg = await readFile(join(process.cwd(), 'public', 'favicon.svg'), 'utf8');
+        const renderFavicon = async (size: number): Promise<Buffer> => {
+          // Setting width/height on the root element makes sharp rasterise at
+          // the target size instead of upscaling the 64px intrinsic one.
+          const scaled = faviconSvg.replace('<svg ', `<svg width="${size}" height="${size}" `);
+          return sharp(Buffer.from(scaled)).png({ compressionLevel: 9 }).toBuffer();
+        };
+
+        const frames = new Map<number, Buffer>();
+        for (const size of [16, 32, 48, 192, 512]) {
+          frames.set(size, await renderFavicon(size));
+        }
+
+        await writeFile(join(dir.pathname, 'favicon-32.png'), frames.get(32)!);
+        await writeFile(join(dir.pathname, 'favicon-192.png'), frames.get(192)!);
+        await writeFile(join(dir.pathname, 'favicon-512.png'), frames.get(512)!);
+        await writeFile(
+          join(dir.pathname, 'favicon.ico'),
+          buildIco([16, 32, 48].map((size) => ({ size, png: frames.get(size)! })))
+        );
+
+        await writeFile(
+          join(dir.pathname, 'site.webmanifest'),
+          `${JSON.stringify(
+            {
+              name: SITE.name,
+              short_name: SITE.name,
+              description: SITE.description,
+              start_url: '/',
+              display: 'standalone',
+              background_color: '#0b0d12',
+              theme_color: SITE.themeColor,
+              icons: [
+                { src: '/favicon-192.png', sizes: '192x192', type: 'image/png' },
+                { src: '/favicon-512.png', sizes: '512x512', type: 'image/png' },
+              ],
+            },
+            null,
+            2
+          )}\n`
+        );
       },
     },
   };
