@@ -74,6 +74,15 @@ gtag('consent', 'default', {
     )}
     <meta name="theme-color" content={SITE.themeColor} />
 
+    <!--
+      Metaetiqueta de AdSense: con ella, la propiedad del dominio se verifica
+      en el panel en un clic, sin esperar a que Google rastree el sitio. Solo
+      aparece si hay ID de editor configurado.
+    -->
+    {ADSENSE_CLIENT && (
+      <meta name="google-adsense-account" content={ADSENSE_CLIENT} />
+    )}
+
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={fullTitle} />
