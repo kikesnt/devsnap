@@ -24,7 +24,14 @@
     urls: string[];
   }
 
-  /** Ad and analytics hosts are not the tool talking to a server. */
+  /**
+   * Ad and analytics hosts are not the tool talking to a server.
+   *
+   * `adtrafficquality.google` is Google SODAR (the ad traffic quality
+   * service). The AdSense script asks it for its configuration with a fetch
+   * as soon as it loads, so without this entry every tool page would report
+   * one request and the smoke test would fail on a build with ads.
+   */
   const IGNORED_HOSTS = [
     'googlesyndication',
     'doubleclick',
@@ -34,6 +41,8 @@
     'fundingchoicesmessages',
     'pagead2.googlesyndication',
     'google.com/pagead',
+    'adtrafficquality.google',
+    'googleadservices',
   ];
 
   const state: ToolProofState = { requests: 0, urls: [] };

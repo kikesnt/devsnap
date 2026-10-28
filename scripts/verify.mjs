@@ -137,7 +137,7 @@ if (!errorPage) {
   errors.push('404 page was not generated');
 } else {
   const html = await readFile(errorPage, 'utf8');
-  if (html.includes('adsbygoogle')) {
+  if (html.includes('pagead2.googlesyndication.com')) {
     errors.push('404 page loads the AdSense script — ads must not appear on error screens');
   }
   if (html.includes('adsbygoogle.js')) {
@@ -177,8 +177,76 @@ for (const file of pages) {
   if (/<iframe[^>]*adsbygoogle/i.test(html)) {
     errors.push(`${relative(dist, file)}: ad markup is wrapped in an iframe, which is prohibited`);
   }
-  if (html.includes('loading="lazy"') && html.includes('adsbygoogle')) {
+  if (html.includes('loading="lazy"') && /<ins[^>]*adsbygoogle/.test(html)) {
     warnings.push(`${relative(dist, file)}: lazy-loaded ad slot — do not lazy-render ad slots`);
+  }
+
+  /*
+   * Consent Mode v2, and the order it has to be in.
+   *
+   * The AdSense script is in the head of every page that serves ads, and
+   * Google's review looks for it there: hide it until the visitor accepts
+   * and the review fails with "no ad unit found on your site". What waits
+   * for the consent is the ad REQUEST, not the script.
+   *
+   * So the script is always there, and the consent mode default has to be
+   * declared BEFORE it: the script is async, and a default that arrives
+   * after it is a default that arrived too late. This check only applies
+   * to the pages that actually load the script, so a build without
+   * advertising stays valid.
+   */
+  const scriptAt = html.indexOf('pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
+  if (scriptAt !== -1) {
+    const consentAt = html.search(/gtag\(\s*['"]consent['"]\s*,\s*['"]default['"]/);
+    if (consentAt === -1) {
+      errors.push(`${relative(dist, file)}: the Consent Mode v2 default is missing`);
+    } else if (consentAt > scriptAt) {
+      errors.push(
+        `${relative(dist, file)}: the Consent Mode v2 default is declared after the AdSense script`
+      );
+    }
+
+    /*
+     * The client id in the tag is the per-site EDITOR id (ca-pub-…). The
+     * account publisher id (pub-…) belongs in ads.txt, not in the tag.
+     */
+    const client = html.match(/adsbygoogle\.js\?client=([^"'&\s]+)/);
+    if (!client) {
+      errors.push(`${relative(dist, file)}: the AdSense script carries no client id`);
+    } else if (!client[1].startsWith('ca-pub-')) {
+      errors.push(
+        `${relative(dist, file)}: the AdSense client id is "${client[1]}", expected a ca-pub-… editor id`
+      );
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3b. ads.txt                                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * ads.txt is a statement about the domain, not about the ad units on the
+ * page: AdSense reads it to check that the site may sell the account's
+ * inventory, and reports "ads.txt error" when the file is served without an
+ * authorised seller. The seller line names the publisher id of the ACCOUNT
+ * (pub-…), which is the same for every site in the account. The per-site
+ * editor id (ca-pub-…) is not a seller and must never appear here.
+ *
+ * The file is checked in every build, advertising or not: it is served at
+ * the domain root either way.
+ */
+const adsTxtPath = join(dist, 'ads.txt');
+if (!existsSync(adsTxtPath)) {
+  errors.push('ads.txt was not generated');
+} else {
+  const adsTxt = await readFile(adsTxtPath, 'utf8');
+  const sellers = adsTxt
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+  if (!sellers.some((line) => /^google\.com,\s*pub-\d+,\s*DIRECT,\s*\S+$/.test(line))) {
+    errors.push(`ads.txt has no authorised seller line: ${JSON.stringify(adsTxt.trim())}`);
   }
 }
 

@@ -10,6 +10,21 @@
  *  - Slots are rendered server-side so the markup exists in the initial HTML.
  *  - Nothing is rendered when the publisher id is not configured, which keeps
  *    local and pre-approval builds completely ad-free.
+ *
+ * The <ins> lives inside a <template>, and that is the whole trick:
+ *
+ *  - Google's review reads the HTML and finds the ad unit. The tag is there,
+ *    in the initial response, with the editor id in it.
+ *  - The AdSense library only walks the DOM, and the content of a <template>
+ *    is not part of the DOM: it lives in a separate document fragment. So
+ *    the library does not find the unit, and no ad request is made.
+ *  - The consent manager (src/components/CookieConsent.astro) moves the
+ *    <ins> out of the template and pushes it to the library once the visitor
+ *    has agreed. That is the moment the request happens.
+ *
+ * The alternative — not rendering the slot at all until the answer arrives —
+ * is what makes the AdSense review fail with "no ad unit found on your
+ * site", because the reviewer never presses "accept".
  */
 import { ADS_ENABLED, ADSENSE_CLIENT } from '../config';
 
@@ -19,7 +34,14 @@ interface Props {
 }
 
 const { slot, variant = 'default' } = Astro.props;
-const active = ADS_ENABLED;
+
+/**
+ * A slot is rendered only when the publisher id AND a real slot id are
+ * configured. A slot id that does not exist yet (an empty string) would
+ * produce an "invalid ad slot" error on every page load and an empty space
+ * for the visitor, which is worse than no space at all.
+ */
+const active = ADS_ENABLED && slot.length > 0;
 ---
 
 {
@@ -30,39 +52,17 @@ const active = ADS_ENABLED;
       data-ad-slot={slot}
     >
       <span class="ad-label">Advertisement</span>
-      <ins
-        class="adsbygoogle"
-        style="display:block"
-        data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={slot}
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
-      <script is:inline>
-        // Two rules, applied per slot rather than per page:
-        //
-        //  - In the EEA, the UK and Switzerland, no ad request is made until
-        //    the visitor has explicitly agreed. The slot is hidden rather
-        //    than filled, because an empty box is worse than no box.
-        //  - Everywhere else the request is made with npa=1 until consent is
-        //    granted, which serves non-personalised advertising: measured,
-        //    but not based on a profile of interests.
-        (function () {
-          var script = document.currentScript;
-          var aside = script ? script.parentElement : null;
-          var ins = aside ? aside.querySelector('ins.adsbygoogle') : null;
-          var consent = window.__adsConsent;
-          var regulated = window.__adsIsEea === true;
-
-          if (regulated && consent !== 'granted') {
-            if (aside) aside.hidden = true;
-            return;
-          }
-
-          if (ins && consent !== 'granted') ins.setAttribute('data-npa', '1');
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-        })();
-      </script>
+      <template data-ds-ad-template>
+        <ins
+          class="adsbygoogle"
+          style="display:block"
+          data-ds-ad-unit
+          data-ad-client={ADSENSE_CLIENT}
+          data-ad-slot={slot}
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        />
+      </template>
     </aside>
   )
 }

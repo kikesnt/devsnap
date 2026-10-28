@@ -4,18 +4,13 @@
  * The model is deliberately simple, because a consent model that is hard to
  * explain is usually a consent model that is hard to defend:
  *
- *  - `granted`  — personalised advertising is allowed.
- *  - `denied`   — it is not. Outside the EEA the slot still loads with
- *                 non-personalised advertising; inside the EEA no ad request
- *                 is made at all.
- *  - `null`     — no answer yet. Treated as `denied` for personalisation, and
- *                 as "do not load" inside the EEA.
+ *  - `granted`  — advertising is allowed, and it is personalised.
+ *  - `denied`   — it is not. No ad request is made at all.
+ *  - `null`     — no answer yet. Treated as `denied`: nothing is requested
+ *                 until the visitor says yes.
  *
- * The EEA test is a timezone heuristic, not geolocation. It is intentionally
- * conservative: it treats the whole `Europe/*` and `Atlantic/*` namespace as
- * the regulated region, which over-includes a few non-EEA countries and never
- * under-includes one. A false positive costs an impression; a false negative
- * costs a GDPR complaint.
+ * A Do Not Track signal overrides a stored yes, which is enforced in the
+ * page's head script before anything is requested.
  */
 
 export type ConsentState = 'granted' | 'denied' | null;
@@ -55,12 +50,15 @@ export function isRegulatedRegion(): boolean {
 }
 
 /**
- * Whether an ad slot may be requested at all. Inside the regulated region the
- * answer is no until the visitor has actively agreed.
+ * Whether an ad slot may be requested at all.
+ *
+ * Only an explicit "yes" releases the slots, and it does so everywhere: the
+ * ad request is what consent mode v2 gates, and the site does not make a
+ * request with a denied signal just because the visitor is outside the
+ * regulated region. Silence is "no".
  */
 export function mayRequestAds(state: ConsentState = readConsent()): boolean {
-  if (state === 'granted') return true;
-  return !isRegulatedRegion();
+  return state === 'granted';
 }
 
 /** Personalised advertising needs an explicit yes, everywhere. */

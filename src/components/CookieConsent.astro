@@ -7,9 +7,22 @@
  * with advertising switched off. It is only shown automatically when the build
  * actually serves ads and the visitor has not answered yet.
  *
- * If Google's certified consent platform (Funding Choices) is present, this
- * banner steps aside: two prompts asking the same question is worse than one,
- * and the certified one is the one that satisfies the EU user consent policy.
+ * Two rules decide when it appears:
+ *
+ *  - It is not rendered until the question of Google's certified consent
+ *    platform (Funding Choices) is settled. `adsbygoogle.js` is async, so
+ *    `window.googlefc` can turn up a second or two after the page has
+ *    loaded; checking it once and showing the banner anyway is how a site
+ *    ends up asking the visitor the same question twice. The banner waits,
+ *    hidden, until Funding Choices has announced itself or the window
+ *    closes. It never flickers: it is hidden in the HTML and only ever
+ *    unhidden once.
+ *
+ *  - The ad slots are not requested until the visitor has agreed. The
+ *    <ins class="adsbygoogle"> elements live inside a <template> (see
+ *    AdSlot.astro), so the AdSense library does not find them and no
+ *    request goes out. Agreeing moves them into the page and pushes them
+ *    to the library.
  */
 import { ADS_ENABLED } from '../config';
 ---
@@ -39,47 +52,149 @@ import { ADS_ENABLED } from '../config';
 </div>
 
 <script>
-  import {
-    readConsent,
-    writeConsent,
-    isRegulatedRegion,
-    mayRequestAds,
-  } from '../lib/consent';
+  import { writeConsent } from '../lib/consent';
+
+  type AdWindow = Window & {
+    gtag?: (...args: unknown[]) => void;
+    googlefc?: unknown;
+    adsbygoogle?: unknown[];
+    __adsConsent?: string;
+    __adsDnt?: boolean;
+  };
+
+  const w = window as AdWindow;
 
   const banner = document.getElementById('consent-banner');
   const acceptButton = document.getElementById('consent-accept');
   const rejectButton = document.getElementById('consent-reject');
 
   const adsEnabled = banner?.dataset.ads === 'true';
-  const googleCmp = () =>
-    Boolean((window as Window & { googlefc?: unknown }).googlefc);
+
+  /**
+   * How long the banner waits for Funding Choices to announce itself, and
+   * how often it looks. The wait is generous on purpose: the script that
+   * creates `window.googlefc` is loaded by Google, from its own CDN, after
+   * the page has already loaded. Ending the wait too early is what produces
+   * two prompts.
+   */
+  const CMP_WAIT_MS = 2500;
+  const CMP_POLL_MS = 100;
 
   function show(): void {
-    if (!banner) return;
-    banner.hidden = false;
+    if (banner) banner.hidden = false;
   }
 
   function hide(): void {
     if (banner) banner.hidden = true;
   }
 
-  if (banner && adsEnabled && !readConsent() && !googleCmp()) {
-    show();
+  const hasGoogleCmp = (): boolean => Boolean(w.googlefc);
+
+  /**
+   * Consent Mode v2. The default was declared in the head, before the
+   * AdSense script, with everything denied. This sends the answer.
+   */
+  function updateConsent(granted: boolean): void {
+    if (typeof w.gtag !== 'function') return;
+    if (granted) {
+      w.gtag('consent', 'update', {
+        ad_storage: 'granted',
+        ad_user_data: 'granted',
+        ad_personalization: 'granted',
+        analytics_storage: 'granted',
+      });
+    } else {
+      w.gtag('consent', 'update', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: 'denied',
+        ads_data_redaction: true,
+      });
+    }
   }
 
-  acceptButton?.addEventListener('click', () => {
-    writeConsent('granted');
-    hide();
-    // Reload so every slot is requested again with personalised advertising.
-    if (adsEnabled) window.location.reload();
-  });
+  /**
+   * Releases the ad slots. The <ins> comes out of its <template> and is
+   * pushed to the AdSense library: this is the moment an ad request is
+   * made, and it only happens after the visitor has agreed.
+   *
+   * Only this site's own units are pushed (they carry data-ds-ad-unit).
+   * Google can inject units of its own into the body — that is automatic
+   * ads, a setting of the AdSense panel, not of this code — and pushing
+   * those would be asking for an ad the visitor has not agreed to.
+   */
+  function releaseAdSlots(): void {
+    const templates = document.querySelectorAll('template[data-ds-ad-template]');
+    templates.forEach((tpl) => {
+      if (tpl.hasAttribute('data-ds-activated')) return;
+      tpl.setAttribute('data-ds-activated', '1');
+      const content = tpl.content ? tpl.content.cloneNode(true) : null;
+      if (!content) return;
+      tpl.parentElement?.appendChild(content);
+    });
 
-  rejectButton?.addEventListener('click', () => {
-    writeConsent('denied');
-    hide();
-    // In the regulated region the slots were withheld; they stay withheld.
-    if (adsEnabled && !isRegulatedRegion()) window.location.reload();
-  });
+    const units = document.querySelectorAll('ins.adsbygoogle[data-ds-ad-unit]');
+    units.forEach(() => {
+      try {
+        (w.adsbygoogle = w.adsbygoogle || []).push({});
+      } catch {
+        // A failed push must not break the rest of the page.
+      }
+    });
+    // A counter, so the release can be observed from the outside: the
+    // consent check asserts that the units were released and that the request
+    // was asked for, and this is the signal it reads.
+    w.__adsReleased = (w.__adsReleased ?? 0) + 1;
+  }
+
+  /**
+   * Takes the ads back. The visitor can change the answer from the footer at
+   * any time, and a "no" has to actually remove what a previous "yes" brought
+   * in: the iframes Google already put in place have to go. The <template>
+   * keeps its own copy of the unit, so the slot can be released again if the
+   * visitor changes their mind back.
+   *
+   * Every ad unit in the page is removed, not only this site's own: an
+   * answer of "no" has to clear the page of ads, including the ones Google
+   * places by itself when automatic ads are on.
+   */
+  function withdrawAdSlots(): void {
+    document.querySelectorAll('ins.adsbygoogle').forEach((unit) => {
+      const frame = unit.querySelector('iframe');
+      if (frame && frame.parentElement) frame.parentElement.removeChild(frame);
+      if (unit.parentElement) unit.parentElement.removeChild(unit);
+    });
+    // The templates keep their own copy of the unit, so the slot has to be
+    // released again if the visitor changes their mind back. Without
+    // clearing the flag, a later "yes" would find the templates already
+    // activated and would leave the page without ads.
+    document.querySelectorAll('template[data-ds-ad-template]').forEach((tpl) => {
+      tpl.removeAttribute('data-ds-activated');
+    });
+  }
+
+  /** Resolves to true when Funding Choices turns up before the wait is over. */
+  function resolveCmp(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (hasGoogleCmp()) {
+        resolve(true);
+        return;
+      }
+      const started = Date.now();
+      const timer = window.setInterval(() => {
+        if (hasGoogleCmp()) {
+          window.clearInterval(timer);
+          resolve(true);
+          return;
+        }
+        if (Date.now() - started >= CMP_WAIT_MS) {
+          window.clearInterval(timer);
+          resolve(false);
+        }
+      }, CMP_POLL_MS);
+    });
+  }
 
   // The footer link reopens the banner so the choice can be changed, in every
   // build, whether or not this build serves ads.
@@ -90,11 +205,61 @@ import { ADS_ENABLED } from '../config';
     });
   });
 
-  // Funding Choices loads after the page, so the banner is re-checked once it
-  // is known to be present.
-  if (adsEnabled) {
-    window.setTimeout(() => {
-      if (googleCmp() && !mayRequestAds()) hide();
-    }, 1500);
-  }
+  acceptButton?.addEventListener('click', () => {
+    // A Do Not Track signal overrides the answer: the site says it honours
+    // the header, so it must not grant what it promised not to grant.
+    const dnt = w.__adsDnt === true;
+    writeConsent(dnt ? 'denied' : 'granted');
+    updateConsent(!dnt);
+    hide();
+    // No reload. The ad units are already in the page, inside their
+    // <template>: releasing them is what starts the request, and that is
+    // exactly what this click means. Reloading would throw the answer away
+    // and make the visitor wait for a page that says the same thing.
+    if (adsEnabled) {
+      if (dnt) withdrawAdSlots();
+      else releaseAdSlots();
+    }
+  });
+
+  rejectButton?.addEventListener('click', () => {
+    writeConsent('denied');
+    updateConsent(false);
+    hide();
+    // If the slots were already live, they have to go: an answer of "no"
+    // has to remove what a previous "yes" brought in.
+    if (adsEnabled) withdrawAdSlots();
+  });
+
+  (async () => {
+    if (!adsEnabled) {
+      // No ad script in this build: there is nothing to ask about. The
+      // banner stays hidden and can still be opened from the footer.
+      hide();
+      return;
+    }
+
+    const stored = w.__adsConsent;
+    if (stored === 'granted') {
+      updateConsent(true);
+      releaseAdSlots();
+      return;
+    }
+    if (stored === 'denied') {
+      updateConsent(false);
+      hide();
+      return;
+    }
+
+    // No answer yet. If Google brings its own certified consent platform,
+    // it asks and it decides: this site keeps quiet so the visitor is never
+    // asked the same question twice, and the slots are released so that
+    // Google's own consent signal drives them.
+    if (await resolveCmp()) {
+      releaseAdSlots();
+      return;
+    }
+
+    show();
+  })();
 </script>

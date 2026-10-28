@@ -12,15 +12,44 @@ const env = import.meta.env;
 export const ADSENSE_CLIENT: string = env.PUBLIC_ADSENSE_CLIENT ?? '';
 
 /**
- * Ad slot ids. AdSense auto-created slots are recommended because they adapt to
- * the viewport; the fallback ids keep the markup valid while the account is
- * still under review.
+ * AdSense publisher id of the ACCOUNT (`pub-…`).
+ *
+ * This is the id that tells Google's servers which publisher owns the
+ * domain, and it is the only value that belongs in ads.txt. It is the same
+ * for every site in the account, and it is not a secret: it is published by
+ * Google itself in the ads.txt of every site that sells through the account.
+ *
+ * The per-site editor id (`ca-pub-…`) is a different thing — it goes in
+ * PUBLIC_ADSENSE_CLIENT and in the ad tag, never in ads.txt. Writing the
+ * editor id there is what produced an "ads.txt error" in the AdSense
+ * console: the file existed, but it authorised no seller.
+ */
+export const ADSENSE_PUBLISHER_ID = 'pub-7087940323534073';
+
+/** The authorised seller line for ads.txt. */
+export const ADSENSE_SELLER_LINE = `google.com, ${ADSENSE_PUBLISHER_ID}, DIRECT, f08c47fec0942fa0`;
+
+/**
+ * Ad slot ids.
+ *
+ * These come from the AdSense panel and from nowhere else: the panel is the
+ * only thing that can mint a slot id, and a made-up one produces an
+ * "invalid ad slot" error on every page and an empty space for the visitor.
+ * So there is no fallback value here — an empty id means "this slot is not
+ * configured", and the slot is not rendered at all.
+ *
+ * A build that has a publisher id but is missing slot ids is refused by
+ * astro.config.ts, because publishing a site with no ad unit is what makes
+ * the AdSense review fail with "no ad unit found on your site".
  */
 export const AD_SLOTS = {
-  belowTool: env.PUBLIC_ADSENSE_SLOT_BELOW_TOOL ?? '1234567890',
-  inArticle: env.PUBLIC_ADSENSE_SLOT_IN_ARTICLE ?? '1234567891',
-  footer: env.PUBLIC_ADSENSE_SLOT_FOOTER ?? '1234567892',
+  belowTool: env.PUBLIC_ADSENSE_SLOT_BELOW_TOOL ?? '',
+  inArticle: env.PUBLIC_ADSENSE_SLOT_IN_ARTICLE ?? '',
+  footer: env.PUBLIC_ADSENSE_SLOT_FOOTER ?? '',
 } as const;
+
+/** True when every ad slot of the site has a real id. */
+export const AD_SLOTS_CONFIGURED = Object.values(AD_SLOTS).every((id) => id.length > 0);
 
 export const SITE = {
   name: 'DevSnap',

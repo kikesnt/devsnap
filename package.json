@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-libs.ts",
     "verify": "node scripts/verify.mjs",
-    "build:ads": "PUBLIC_ADSENSE_CLIENT=pub-0000000000000000 astro build",
+    "build:ads": "PUBLIC_ADSENSE_CLIENT=ca-pub-0000000000000000 PUBLIC_ADSENSE_SLOT_BELOW_TOOL=1234567890 PUBLIC_ADSENSE_SLOT_IN_ARTICLE=1234567891 PUBLIC_ADSENSE_SLOT_FOOTER=1234567892 astro build",
     "check:ads": "npm run build:ads && node scripts/verify.mjs",
     "og": "node scripts/generate-og.mjs",
     "smoke": "node scripts/smoke.mjs",

@@ -38,6 +38,26 @@ const schemaNodes = Array.isArray(schemas) ? schemas : schemas ? [schemas] : [];
 const canonical = `${SITE.domain}${canonicalPath}`;
 const fullTitle = title === SITE.name ? `${SITE.name} — ${SITE.tagline}` : `${title} | ${SITE.name}`;
 const adsActive = ADS_ENABLED && !hideAds;
+
+/**
+ * Consent Mode v2, declared before the AdSense script.
+ *
+ * Kept as a raw string because it has to run as a classic inline script,
+ * before anything else: `gtag` has to exist as a global when the AdSense
+ * script is parsed, and it has to have been given a default by then.
+ */
+const CONSENT_DEFAULT = `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('consent', 'default', {
+  ad_storage: 'denied',
+  ad_user_data: 'denied',
+  ad_personalization: 'denied',
+  analytics_storage: 'denied',
+  ads_data_redaction: true,
+  functionality_storage: 'granted',
+  security_storage: 'granted',
+  wait_for_update: 500
+});`;
 ---
 
 <!doctype html>
@@ -53,6 +73,15 @@ const adsActive = ADS_ENABLED && !hideAds;
       <link rel="canonical" href={canonical} />
     )}
     <meta name="theme-color" content={SITE.themeColor} />
+
+    <!--
+      Metaetiqueta de AdSense: con ella, la propiedad del dominio se verifica
+      en el panel en un clic, sin esperar a que Google rastree el sitio. Solo
+      aparece si hay ID de editor configurado.
+    -->
+    {ADSENSE_CLIENT && (
+      <meta name="google-adsense-account" content={ADSENSE_CLIENT} />
+    )}
 
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:type" content={ogType} />
@@ -130,29 +159,36 @@ const adsActive = ADS_ENABLED && !hideAds;
           navigator.msDoNotTrack === '1';
         window.__adsDnt = dnt;
         window.__adsConsent = dnt ? 'denied' : (consent ?? 'unknown');
-
-        // The regulated region has to be decided before a slot is requested,
-        // because the answer changes whether a request happens at all. A
-        // timezone is not a location, but it is the only signal available to
-        // a static page, and over-including is the safe direction.
-        try {
-          var zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-          window.__adsIsEea =
-            zone.indexOf('Europe/') === 0 || zone.indexOf('Atlantic/') === 0;
-        } catch (error) {
-          window.__adsIsEea = true;
-        }
       })();
     </script>
 
     {
       adsActive && (
-        <script
-          is:inline
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-          crossorigin="anonymous"
-        />
+        <>
+          {/*
+            Consent Mode v2, declared BEFORE the AdSense script. The default
+            has to exist before the first request goes out, and the script is
+            async, so the declaration cannot come after it.
+
+            Everything is denied by default: no ad storage, no ad user data,
+            no personalisation, no analytics. The visitor's answer is sent
+            later as a 'consent update'. The site loads no analytics of its
+            own, so the two functional grants are all it asks for.
+          */}
+          <script is:inline set:html={CONSENT_DEFAULT} />
+          {/*
+            The AdSense script is always in the head, consent or not. It is
+            what Google's review looks for: hide it until the visitor
+            accepts and the review fails with "no ad unit found on your
+            site". What waits for consent is the ad REQUEST, not the script.
+          */}
+          <script
+            is:inline
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+            crossorigin="anonymous"
+          />
+        </>
       )
     }
 
