@@ -248,6 +248,22 @@ if (!existsSync(adsTxtPath)) {
   if (!sellers.some((line) => /^google\.com,\s*pub-\d+,\s*DIRECT,\s*\S+$/.test(line))) {
     errors.push(`ads.txt has no authorised seller line: ${JSON.stringify(adsTxt.trim())}`);
   }
+
+  /*
+   * Every site of the account serves the same 59 bytes. A comment line is
+   * harmless for the parser, but it makes two files of the same account
+   * differ, and the difference is what breaks the byte for byte comparison
+   * when the account is audited.
+   */
+  const nonEmptyLines = adsTxt
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (nonEmptyLines.length !== 1) {
+    errors.push(
+      `ads.txt must be exactly one line, found ${nonEmptyLines.length}: ${JSON.stringify(adsTxt.trim())}`
+    );
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -264,15 +280,53 @@ for (const file of pages) {
       if (!parsed['@context']) {
         errors.push(`${relative(dist, file)}: JSON-LD block without @context`);
       }
+
+      /*
+       * An empty field is worse than a missing one: the structured data
+       * looks valid, the validator passes it, and the search engine gets a
+       * publisher with no url and no address. This happened when a build
+       * variable came out empty and the default was not applied.
+       */
+      for (const node of parsed['@graph'] ?? [parsed]) {
+        const type = node['@type'] ?? 'node';
+        if (node.url === '') {
+          errors.push(`${relative(dist, file)}: JSON-LD "${type}" has an empty url`);
+        }
+        if (node.email === '') {
+          errors.push(`${relative(dist, file)}: JSON-LD "${type}" has an empty email`);
+        }
+        if (node.publisher && node.publisher.name === '') {
+          errors.push(`${relative(dist, file)}: JSON-LD "${type}" has a publisher with an empty name`);
+        }
+      }
     } catch (error) {
       errors.push(`${relative(dist, file)}: JSON-LD is not valid JSON (${error.message})`);
     }
   }
 
   const isNoIndex = html.includes('name="robots" content="noindex');
-  if (!html.includes('<link rel="canonical"') && !isNoIndex) {
+  const canonical = html.match(/<link rel="canonical" href="([^"]*)"/);
+  if (!canonical && !isNoIndex) {
     errors.push(`${relative(dist, file)}: missing canonical link`);
   }
+
+  /*
+   * A relative canonical is a canonical that says nothing about which domain
+   * the page belongs to. It happens when the site domain is empty, and it is
+   * invisible in the build log: the page still builds and the link is still
+   * there. So the check is that it is absolute, not that it exists.
+   */
+  if (canonical && !/^https?:\/\/[^\s]+$/.test(canonical[1])) {
+    errors.push(
+      `${relative(dist, file)}: canonical is "${canonical[1]}", expected an absolute https URL`
+    );
+  }
+
+  const ogUrl = html.match(/<meta property="og:url" content="([^"]*)"/);
+  if (ogUrl && !/^https?:\/\/[^\s]+$/.test(ogUrl[1])) {
+    errors.push(`${relative(dist, file)}: og:url is "${ogUrl[1]}", expected an absolute https URL`);
+  }
+
   if (!html.includes('name="description"')) {
     errors.push(`${relative(dist, file)}: missing meta description`);
   }

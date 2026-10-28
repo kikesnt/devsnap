@@ -16,9 +16,13 @@ import { ADSENSE_SELLER_LINE } from '../config';
  * The line is served whether or not this build serves ads: ads.txt is a
  * statement about the domain, not about the ad units on the page. A build
  * without ads still has to be reviewable, and the review checks this file.
+ *
+ * The file is exactly one line, with no comment above it. Every site of the
+ * account serves the same 59 bytes, and a comment line is the one thing that
+ * makes two of them differ for no reason.
  */
 export const GET: APIRoute = () => {
-  const body = `# ads.txt for DevSnap\n${ADSENSE_SELLER_LINE}\n`;
+  const body = `${ADSENSE_SELLER_LINE}\n`;
   return new Response(body, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   });
