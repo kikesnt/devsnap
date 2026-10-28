@@ -61,7 +61,9 @@ jobs:
 
       - name: Start the preview server
         run: |
-          npx astro preview --port 4321 > /tmp/astro-preview.log 2>&1 &
+          # --host 127.0.0.1 es obligatorio: Astro 7 escucha en 'localhost', que en Node
+          # resuelve a IPv6, y el curl de comprobación va a 127.0.0.1 (IPv4).
+          npx astro preview --port 4321 --host 127.0.0.1 > /tmp/astro-preview.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:4321/ > /dev/null 2>&1; then
               echo "the preview server is up"
@@ -109,7 +111,9 @@ jobs:
 
       - name: Start the preview server
         run: |
-          npx astro preview --port 4321 > /tmp/astro-preview.log 2>&1 &
+          # --host 127.0.0.1 es obligatorio: Astro 7 escucha en 'localhost', que en Node
+          # resuelve a IPv6, y el curl de comprobación va a 127.0.0.1 (IPv4).
+          npx astro preview --port 4321 --host 127.0.0.1 > /tmp/astro-preview.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:4321/ > /dev/null 2>&1; then
               echo "the preview server is up"
