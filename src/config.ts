@@ -8,6 +8,23 @@
 
 const env = import.meta.env;
 
+/**
+ * Reads an environment variable and falls back when it carries no value.
+ *
+ * An empty string counts as missing, and that is not a detail. A CI pipeline
+ * passes a variable that does not exist as an empty string, and `??` only
+ * falls back on null and undefined. So an empty PUBLIC_SITE_DOMAIN did not
+ * fall back to the default domain: it left the canonical of every page
+ * relative ("/"), the og:url relative, the publisher name of the JSON-LD
+ * blank, and the contact pages without any e-mail address at all. The build
+ * was green and the site was published. Only reading the deployed HTML
+ * showed it.
+ */
+function withFallback(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
 /** Public AdSense publisher id (`pub-XXXXXXXXXXXXXXXX`). Empty = ads disabled. */
 export const ADSENSE_CLIENT: string = env.PUBLIC_ADSENSE_CLIENT ?? '';
 
@@ -53,18 +70,18 @@ export const AD_SLOTS_CONFIGURED = Object.values(AD_SLOTS).every((id) => id.leng
 
 export const SITE = {
   name: 'DevSnap',
-  domain: (env.PUBLIC_SITE_DOMAIN ?? 'https://devsnap.cc').replace(/\/$/, ''),
+  domain: withFallback(env.PUBLIC_SITE_DOMAIN, 'https://devsnap.cc').replace(/\/$/, ''),
   tagline: 'The developer toolbox that never sees your code.',
   description:
     'Free developer tools that run in your browser. Format JSON, test regexes, decode JWTs, build crons and turn code into shareable images. No upload, no sign-up.',
   locale: 'en_US',
   lang: 'en',
   themeColor: '#4f46e5',
-  contactEmail: env.PUBLIC_CONTACT_EMAIL ?? 'hello@devsnap.cc',
+  contactEmail: withFallback(env.PUBLIC_CONTACT_EMAIL, 'hello@devsnap.cc'),
   /** Publisher name shown in the footer and on the trust pages. */
-  publisher: env.PUBLIC_PUBLISHER_NAME ?? 'DevSnap',
+  publisher: withFallback(env.PUBLIC_PUBLISHER_NAME, 'DevSnap'),
   /** Named author of the guides and the written content. */
-  author: env.PUBLIC_AUTHOR_NAME ?? 'Enrique M.',
+  author: withFallback(env.PUBLIC_AUTHOR_NAME, 'Enrique M.'),
   /** Year used in the legal pages. */
   foundedYear: 2026,
 } as const;
