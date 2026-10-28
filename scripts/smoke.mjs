@@ -41,6 +41,12 @@ const PORT = 9333;
 const BASE_URL = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:4321';
 const chrome = await findChrome();
 if (!chrome) {
+  if (process.env.SMOKE_REQUIRED) {
+    // In CI a missing browser must fail the gate, not skip it: a gate that
+    // silently does nothing is worse than no gate.
+    console.error('No Chrome binary found — the smoke test cannot run.');
+    process.exit(1);
+  }
   console.log('No Chrome binary found — skipping the browser smoke test.');
   process.exit(0);
 }
@@ -174,7 +180,13 @@ for (const path of pages) {
 
   // The preview server runs on its own port; the DevTools browser is only
   // the client driving it.
-  const url = `${BASE_URL}${path}`;
+  //
+  // The site is built with trailingSlash: 'always', so the URL it serves is
+  // the one with the final slash. Asking for the path without it returns
+  // Astro's 404 page, and a 404 page has no tool, no integrity chip and no
+  // errors: the test walked 62 pages, found 0 tools and reported a clean
+  // run. The URL is normalised the same way scripts/verify.mjs normalises it.
+  const url = `${BASE_URL}${path.endsWith('/') ? path : `${path}/`}`;
   await send('Page.navigate', { url });
   await sleep(900);
 
@@ -243,6 +255,21 @@ for (const path of pages) {
   if (problems.length > 0) {
     failures.push({ path, problems: [...new Set(problems)] });
   }
+}
+
+/*
+ * An empty green is worse than a red one. If no tool page was exercised,
+ * the browser was loading something that is not the site (a 404, a wrong
+ * base URL, a preview server that was not up), and every other number in
+ * this report is meaningless. The run fails instead of reporting 0/0.
+ */
+if (toolPages === 0) {
+  failures.push({
+    path: '(coverage)',
+    problems: [
+      'no tool page was exercised: the browser did not load the built pages',
+    ],
+  });
 }
 
 socket.close();

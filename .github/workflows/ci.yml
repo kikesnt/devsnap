@@ -59,12 +59,74 @@ jobs:
       - name: String literals
         run: npm run lint:strings
 
+      - name: Start the preview server
+        run: |
+          npx astro preview --port 4321 > /tmp/astro-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4321/ > /dev/null 2>&1; then
+              echo "the preview server is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "the preview server did not start"
+          cat /tmp/astro-preview.log
+          exit 1
+
+      - name: End-to-end smoke test
+        run: npm run smoke
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:4321
+          # A missing browser must not turn the gate into a no-op.
+          SMOKE_REQUIRED: '1'
+
       - name: Keep the build for the deploy job
         uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist
           retention-days: 7
+
+  ads:
+    name: AdSense build and consent flow
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # A separate job on purpose: this rebuilds dist with a placeholder
+      # publisher id, and the artifact the deploy job publishes is the one
+      # the check job built with the real configuration.
+      - name: AdSense build check
+        run: npm run check:ads
+
+      - name: Start the preview server
+        run: |
+          npx astro preview --port 4321 > /tmp/astro-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4321/ > /dev/null 2>&1; then
+              echo "the preview server is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "the preview server did not start"
+          cat /tmp/astro-preview.log
+          exit 1
+
+      - name: Consent flow check
+        run: npm run check:consent
+        env:
+          CONSENT_BASE_URL: http://127.0.0.1:4321
+          # A missing browser must not turn the gate into a no-op.
+          CONSENT_REQUIRED: '1'
 
   deploy:
     name: Deploy to Cloudflare Pages
