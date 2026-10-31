@@ -143,6 +143,8 @@ jobs:
       name: production
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -164,6 +166,10 @@ jobs:
         # IndexNow is Microsoft's protocol: it tells Bing that the sitemap URLs
         # changed, without waiting for the normal crawl. It runs AFTER the
         # deploy, so the URLs are already live when Bing checks them.
+        #
+        # It needs the checkout above: the script lives in scripts/ and it
+        # reads the key from public/. Without it, this step failed with
+        # "Cannot find module" and continue-on-error hid it.
         #
         # continue-on-error: the notification is an extra, not a requirement.
         # If IndexNow is down or the key never reaches the root, the site is
