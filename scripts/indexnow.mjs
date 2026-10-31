@@ -6,14 +6,20 @@
 // key and the list of URLs. Bing consumes it natively, which is what makes a
 // new page show up in Bing in minutes instead of days.
 //
-// Two design rules:
+// Three design rules:
 //
 //   1. The key is NOT a secret. By design it is published at the root of the
 //      site, in the <key>.txt file. If the search engine cannot read that
 //      file the request is rejected with a 422. That is why the key is found
 //      by file name: the file that gets published is the source of the key.
 //
-//   2. This script never fails the build. If IndexNow is down, if the network
+//   2. The key file has to be live BEFORE the notification. IndexNow validates
+//      the key in the background and, if it cannot find the file at that
+//      moment, it marks the key+host pair as unauthorized and never accepts it
+//      again (403). That is why the script waits for the key to answer before
+//      sending anything.
+//
+//   3. This script never fails the build. If IndexNow is down, if the network
 //      is broken or if the key never reaches the root, it prints a line and
 //      exits with code 0. Notifying a search engine is an extra, not a
 //      requirement.
@@ -27,6 +33,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ENDPOINT = "https://api.indexnow.org/indexnow";
 const TIMEOUT_MS = 20000;
+const KEY_WAIT_MS = 30000;
+const KEY_ATTEMPTS = 4;
 
 // The key is found by file name: 32 hex characters, as IndexNow keys are. It
 // is the same file that gets published at the root of the site.
@@ -62,6 +70,29 @@ const answers = async (url) => {
   }
 };
 
+// Waits for the key file to be served from the root of the site. The deploy
+// and the notification leave in parallel (Pages builds on its own and the
+// notification runs in a separate workflow), so it needs room.
+const keyIsLive = async (host, key) => {
+  const url = `https://${host}/${key}.txt`;
+  for (let attempt = 1; attempt <= KEY_ATTEMPTS; attempt++) {
+    try {
+      const r = await fetch(url, {
+        method: "HEAD",
+        redirect: "follow",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (r.status < 400) return true;
+    } catch {
+      // Not there yet: try again.
+    }
+    if (attempt < KEY_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, KEY_WAIT_MS));
+    }
+  }
+  return false;
+};
+
 const notify = async (host, key, urls) => {
   const body = {
     host,
@@ -77,8 +108,8 @@ const notify = async (host, key, urls) => {
   });
   const text = (await r.text()).slice(0, 300).trim();
   // 200 = validated and processed. 202 = queued while the key is validated.
-  // 400 = malformed request. 422 = the key file was not found. 429 = too many
-  // requests.
+  // 400 = malformed request. 403 = the key+host pair is not authorized.
+  // 422 = the key file was not found. 429 = too many requests.
   console.log(`IndexNow: HTTP ${r.status} ${text} | ${urls.length} URLs on ${host}`);
   return r.status;
 };
@@ -118,6 +149,13 @@ const main = async () => {
       return false;
     }
   });
+
+  // Without the key live, the notification would be rejected and the
+  // key+host pair would be marked unauthorized for good.
+  if (!(await keyIsLive(host, key))) {
+    console.log(`IndexNow: the key is not live on ${host} yet. Nobody was notified.`);
+    return;
+  }
 
   // Eight at a time: these are network calls and there is no need for more.
   const live = [];
