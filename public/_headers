@@ -50,24 +50,18 @@
   ! Cache-Control
   Cache-Control: public, max-age=604800
 
-# Crawler files should not be cached for long: a mistake in ads.txt or
-# robots.txt needs to be fixable within the hour.
-/robots.txt
-  ! Cache-Control
-  Cache-Control: public, max-age=3600
-
-/ads.txt
-  ! Cache-Control
-  Cache-Control: public, max-age=3600
-
-/sitemap-index.xml
-  ! Cache-Control
-  Cache-Control: public, max-age=3600
-
-/sitemap-0.xml
-  ! Cache-Control
-  Cache-Control: public, max-age=3600
-
-/guides/rss.xml
-  ! Cache-Control
-  Cache-Control: public, max-age=3600
+# Crawler files must not sit in the edge cache for hours.
+#
+# Cloudflare Pages forces `public, max-age=14400` on these files whatever this
+# file says, and it only revalidates them while the value inherited from the
+# `/*` rule above keeps its `must-revalidate`. A rule here that detaches the
+# inherited value (`! Cache-Control`) removes that `must-revalidate`, and the
+# edge then serves the file unchanged for four hours: a mistake in ads.txt or
+# in robots.txt would take that long to reach the crawlers.
+#
+# Measured on 31/10/2026: with the detached rule, devsnap.cc/robots.txt was
+# still serving the previous version 45 minutes after the deploy
+# (`cf-cache-status: HIT`, `age: 2723`). The other three sites, which have no
+# rule here, answered `cf-cache-status: REVALIDATED` with the new file.
+#
+# So: no rule for these files. They inherit `/*` and the edge revalidates.
