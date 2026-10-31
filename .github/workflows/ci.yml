@@ -148,6 +148,10 @@ jobs:
           name: dist
           path: dist
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.4'
+
       - name: Deploy
         id: deploy
         uses: cloudflare/wrangler-action@v4
@@ -155,3 +159,14 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'devsnap' }} --branch=main
+
+      - name: Notify Bing (IndexNow)
+        # IndexNow is Microsoft's protocol: it tells Bing that the sitemap URLs
+        # changed, without waiting for the normal crawl. It runs AFTER the
+        # deploy, so the URLs are already live when Bing checks them.
+        #
+        # continue-on-error: the notification is an extra, not a requirement.
+        # If IndexNow is down or the key never reaches the root, the site is
+        # already published and the notification can be sent again later.
+        continue-on-error: true
+        run: node scripts/indexnow.mjs
