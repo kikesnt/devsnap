@@ -66,7 +66,7 @@ User-agent: ${AI_TRAINING_BOTS.join('\nUser-agent: ')}
 ${SIGNAL}
 Disallow: /
 
-Sitemap: https://devsnap.cc/sitemap-index.xml
+Sitemap: https://devsnap.cc/sitemap.xml
 `;
   return new Response(body, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8' },
